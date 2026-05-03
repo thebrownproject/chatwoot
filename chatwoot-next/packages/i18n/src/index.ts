@@ -56,34 +56,29 @@ export const SUPPORTED_LOCALES = [
 export const DEFAULT_LOCALE = 'en';
 
 /**
- * Dynamically import all JSON files under `locale/<code>/*.json`
- * and merge them into a single object keyed by feature (filename) name.
+ * Load the merged JSON dictionary for a locale.
  *
- * TODO: The key namespace strategy here must match the Vue dashboard's
- * vue-i18n loader (see `app/javascript/dashboard/i18n/locale/<code>/index.js`).
- * Today vue-i18n flattens all feature files into a single namespace; this stub
- * preserves the per-feature key so callers can decide how to flatten/merge.
+ * NOTE: `import.meta.glob` is Vite-specific and is not portable to a plain
+ * tsc build. To keep this package bundler-agnostic we ship a stub that
+ * returns an empty record. Real implementations live in each consumer:
+ *
+ *   - apps/web (Next.js): wires this into a `next-intl` request config that
+ *     loads `locale/<code>/*.json` from disk at build/runtime.
+ *   - apps/widget (Vite): re-implements with `import.meta.glob` for
+ *     compile-time inclusion.
+ *
+ * The key namespace strategy must match the Vue dashboard's vue-i18n loader
+ * (see `app/javascript/dashboard/i18n/locale/<code>/index.js`).
  */
 export async function loadLocale(
   locale: string,
-): Promise<Record<string, any>> {
-  const modules = import.meta.glob('../locale/*/*.json');
-  const prefix = `../locale/${locale}/`;
-  const merged: Record<string, any> = {};
-
-  for (const path of Object.keys(modules)) {
-    if (!path.startsWith(prefix)) continue;
-    const feature = path.slice(prefix.length).replace(/\.json$/, '');
-    const loader = modules[path];
-    if (!loader) continue;
-    const mod = (await loader()) as { default?: unknown } | unknown;
-    merged[feature] =
-      mod && typeof mod === 'object' && 'default' in (mod as object)
-        ? (mod as { default: unknown }).default
-        : mod;
-  }
-
-  return merged;
+): Promise<Record<string, unknown>> {
+  // TODO: ported to runtime fs-based loader; consumers (Next.js, Vite apps)
+  // should use bundler-specific glob if they want compile-time inclusion.
+  // Stub: returns empty record. Wired in when Next.js next-intl integration
+  // lands.
+  void locale;
+  return {};
 }
 
 export type { Locale } from './types.js';

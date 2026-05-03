@@ -46,3 +46,10 @@ export function buildAuthConfig(
   // existing frontend cookie convention keeps working.
   throw new Error('buildAuthConfig: not implemented');
 }
+
+// Consumers should call `NextAuth(buildAuthConfig({...}))` themselves to obtain
+// `{ handlers, auth, signIn, signOut }`. We re-export the default export of
+// `next-auth` here for convenience so callers don't need a separate dependency
+// on `next-auth` just to construct the runtime.
+export { default as NextAuth } from 'next-auth';
+export type { NextAuthResult } from 'next-auth';

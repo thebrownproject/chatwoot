@@ -3,6 +3,4 @@
 // account-scoped client; consumers should call `db.forAccount(accountId)`.
 import { createClient } from '@chatwoot-next/db';
 
-export const db = createClient({
-  connectionString: process.env.DATABASE_URL!,
-});
+export const db = createClient(process.env.DATABASE_URL!);

@@ -7,7 +7,7 @@ import type { Policy } from './types.js';
  * to override OSS at boot. `requireAll(...)` is used at boot to assert that the
  * expected enterprise overlays have been loaded.
  */
-class PolicyRegistry {
+export class PolicyRegistry {
   private policies = new Map<string, Policy<unknown, unknown>>();
 
   register<TRecord, TUser>(name: string, policy: Policy<TRecord, TUser>): void {

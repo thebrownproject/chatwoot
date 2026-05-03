@@ -1,6 +1,6 @@
 // Source: app/javascript/dashboard/components/widgets/WootWriter/Editor.vue
 import type { FC } from 'react';
-import type { Extension, Node, Mark } from '@tiptap/pm/model';
+import type { Extension, Node, Mark } from '@tiptap/core';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 

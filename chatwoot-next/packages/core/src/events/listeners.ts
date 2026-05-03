@@ -8,7 +8,7 @@ export type Listener = (event: DomainEvent) => Promise<void>;
  * via `register(eventName, fn)`. The Enterprise package adds extra listeners
  * via the same registry — no overrides, just additional registrations.
  */
-class ListenerRegistry {
+export class ListenerRegistry {
   private readonly listeners = new Map<string, Set<Listener>>();
 
   register(eventName: string, listener: Listener): void {

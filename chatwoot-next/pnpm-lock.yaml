@@ -489,6 +489,9 @@ importers:
 
   packages/editor:
     dependencies:
+      '@tiptap/core':
+        specifier: ^2.10.0
+        version: 2.27.2(@tiptap/pm@2.27.2)
       '@tiptap/pm':
         specifier: ^2.10.0
         version: 2.27.2

@@ -8,8 +8,7 @@
  * contract so clients don't change during cutover.
  */
 
-import type { Socket } from 'socket.io';
-import type { ExtendedError } from 'socket.io/dist/namespace';
+import type { Socket as IoSocket } from 'socket.io';
 
 export interface SocketAuthContext {
   kind: 'user' | 'contact';
@@ -18,13 +17,22 @@ export interface SocketAuthContext {
   pubsubToken: string;
 }
 
-declare module 'socket.io' {
-  interface Socket {
-    data: { auth?: SocketAuthContext } & Record<string, unknown>;
-  }
-}
+// Typed socket alias. Avoids global module augmentation of `socket.io` so the
+// `data` slot is locally narrowed to `{ auth?: SocketAuthContext }` for the
+// realtime app without conflicting with downstream consumers.
+type AuthData = {
+  auth?: SocketAuthContext;
+  userId?: string;
+  accountId?: string;
+  pubsubToken?: string;
+};
 
-const extractToken = (socket: Socket): string | null => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AuthedSocket = IoSocket<any, any, any, AuthData>;
+
+type NextFn = (err?: Error) => void;
+
+const extractToken = (socket: AuthedSocket): string | null => {
   const auth = socket.handshake.auth as { pubsubToken?: unknown };
   if (typeof auth?.pubsubToken === 'string' && auth.pubsubToken.length > 0) {
     return auth.pubsubToken;
@@ -44,8 +52,8 @@ const lookupPubsubToken = async (
 };
 
 export const authMiddleware = async (
-  socket: Socket,
-  next: (err?: ExtendedError) => void
+  socket: AuthedSocket,
+  next: NextFn
 ): Promise<void> => {
   const token = extractToken(socket);
   if (!token) {

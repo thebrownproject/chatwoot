@@ -19,9 +19,12 @@ export type PresenceStatus = 'online' | 'offline' | 'busy';
 
 export interface RealtimeClientOptions {
   url: string;
-  pubsubToken: string;
-  accountId: number;
+  pubsubToken?: string;
+  accountId?: number;
   userId?: number;
+  // Optional bearer-style auth token used for cross-domain WS auth (widget).
+  // Server-side maps this to `pubsubToken` during handshake.
+  token?: string;
 }
 
 export type RealtimeListener = (data: unknown) => void;
