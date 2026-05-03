@@ -33,17 +33,13 @@ type RealtimeEventDataFor<E extends RealtimeEventName> = Extract<
   { event: E }
 >['data'];
 
+export type TypedListener<E extends RealtimeEventName> = RealtimeListener<
+  RealtimeEventDataFor<E>
+>;
+
 export interface RealtimeClient {
-  on<E extends RealtimeEventName>(
-    event: E,
-    cb: RealtimeListener<RealtimeEventDataFor<E>>,
-  ): void;
-  on(event: string, cb: RealtimeListener): void;
-  off<E extends RealtimeEventName>(
-    event: E,
-    cb: RealtimeListener<RealtimeEventDataFor<E>>,
-  ): void;
-  off(event: string, cb: RealtimeListener): void;
+  on(event: RealtimeEventName | string, cb: RealtimeListener): void;
+  off(event: RealtimeEventName | string, cb: RealtimeListener): void;
   connect(): void;
   disconnect(): void;
   updatePresence(status: PresenceStatus): void;
@@ -129,20 +125,9 @@ export function createRealtimeClient(
       socket = null;
     },
 
-    on(event: string, cb: RealtimeListener) {
-      let set = listeners.get(event);
-      if (!set) {
-        set = new Set();
-        listeners.set(event, set);
-      }
-      set.add(cb);
-      socket?.on(event, cb);
-    },
+    on,
 
-    off(event: string, cb: RealtimeListener) {
-      listeners.get(event)?.delete(cb);
-      socket?.off(event, cb);
-    },
+    off,
 
     updatePresence(status: PresenceStatus) {
       socket?.emit('presence:update', { status });
