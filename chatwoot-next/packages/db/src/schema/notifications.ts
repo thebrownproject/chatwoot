@@ -12,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-import type { NotificationMeta, NotificationSubscriptionAttributes } from './types';
+import type { NotificationMeta, NotificationSubscriptionAttributes } from './types.js';
 
 export const notifications = pgTable(
   'notifications',

@@ -13,7 +13,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import type { CustomAttributeValues, CustomFilterQuery } from './types';
+import type { CustomAttributeValues, CustomFilterQuery } from './types.js';
 
 export const labels = pgTable(
   'labels',

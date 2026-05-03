@@ -12,7 +12,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import type { ArticleMeta, PortalConfig, PortalSslSettings } from './types';
+import type { ArticleMeta, PortalConfig, PortalSslSettings } from './types.js';
 
 export const portals = pgTable(
   'portals',

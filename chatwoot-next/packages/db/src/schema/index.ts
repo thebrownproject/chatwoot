@@ -1,2 +1,15 @@
-// Run pnpm db:introspect against /home/user/chatwoot Postgres to populate tables/*.ts from db/schema.rb (87 tables). Do NOT hand-write tables — the Rails app owns the schema.
-export * from './tables.js';
+export * from './accounts.js';
+export * from './users.js';
+export * from './inboxes.js';
+export * from './contacts.js';
+export * from './channels.js';
+export * from './teams.js';
+export * from './labels.js';
+export * from './automation.js';
+export * from './campaigns.js';
+export * from './notifications.js';
+export * from './webhooks.js';
+export * from './reports.js';
+export * from './portal.js';
+export * from './active_storage.js';
+export * from './types.js';

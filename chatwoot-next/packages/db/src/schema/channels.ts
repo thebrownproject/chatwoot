@@ -19,7 +19,7 @@ import type {
   ChannelMessageTemplates,
   ChannelProviderConfig,
   WebWidgetPreChatFormOptions,
-} from './types';
+} from './types.js';
 
 export const channelApi = pgTable(
   'channel_api',

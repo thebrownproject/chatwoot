@@ -27,7 +27,7 @@ import type {
   MessageExternalSourceIds,
   MessageMeta,
   MessageSentiment,
-} from './types';
+} from './types.js';
 
 /** Rails enum: { visitor: 0, lead: 1, customer: 2 } */
 export type ContactType = 0 | 1 | 2;

@@ -17,7 +17,7 @@ import type {
   AutomationActions,
   AutomationConditions,
   MacroActions,
-} from './types';
+} from './types.js';
 
 export const automationRules = pgTable(
   'automation_rules',

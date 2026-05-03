@@ -14,7 +14,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import type { UiSettings, UserCustomAttributes, UserTokens } from './types';
+import type { UiSettings, UserCustomAttributes, UserTokens } from './types.js';
 
 /** Rails enum: { online: 0, offline: 1, busy: 2 } */
 export type UserAvailability = 0 | 1 | 2;

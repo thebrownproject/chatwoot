@@ -13,7 +13,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import type { InboxAutoAssignmentConfig, InboxCsatConfig } from './types';
+import type { InboxAutoAssignmentConfig, InboxCsatConfig } from './types.js';
 
 /** Rails enum: { friendly: 0, professional: 1 } */
 export type InboxSenderNameType = 0 | 1;

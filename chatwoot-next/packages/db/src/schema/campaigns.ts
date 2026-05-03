@@ -15,7 +15,7 @@ import type {
   CampaignAudienceEntry,
   CampaignTemplateParams,
   CampaignTriggerRules,
-} from './types';
+} from './types.js';
 
 /** Rails enum: { ongoing: 0, one_off: 1 } */
 export type CampaignType = 0 | 1;

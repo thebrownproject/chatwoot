@@ -18,7 +18,7 @@ import type {
   AccountInternalAttributes,
   AccountLimits,
   AccountSettings,
-} from './types';
+} from './types.js';
 
 /** Rails enum: { active: 0, suspended: 1 } */
 export type AccountStatus = 0 | 1;

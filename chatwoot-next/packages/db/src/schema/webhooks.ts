@@ -11,7 +11,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import type { IntegrationsHookSettings, WebhookSubscriptions } from './types';
+import type { IntegrationsHookSettings, WebhookSubscriptions } from './types.js';
 
 export const webhooks = pgTable(
   'webhooks',
