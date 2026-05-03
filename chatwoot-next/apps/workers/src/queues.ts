@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { connection } from './redis.js';
+import { createWorkerRedis } from './redis.js';
 
 // Queue names mirror Rails `config/sidekiq.yml` priority order. New code
 // enqueues via `enqueueJob` from `@chatwoot-next/core`; legacy Rails workers
@@ -31,10 +31,24 @@ export const queueNames: QueueName[] = [
   'integrations',
 ];
 
+const defaultJobOptions = {
+  attempts: 3,
+  backoff: { type: 'exponential' as const, delay: 5_000 },
+  removeOnComplete: 100,
+  removeOnFail: 1000,
+};
+
 export const queues: Record<QueueName, Queue> = queueNames.reduce(
   (acc, name) => {
-    acc[name] = new Queue(name, { connection });
+    acc[name] = new Queue(name, {
+      connection: createWorkerRedis(),
+      defaultJobOptions,
+    });
     return acc;
   },
   {} as Record<QueueName, Queue>,
 );
+
+export async function closeQueues(): Promise<void> {
+  await Promise.all(Object.values(queues).map((queue) => queue.close()));
+}

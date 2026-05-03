@@ -3,23 +3,31 @@
 // Rails equivalent: Channel::Whatsapp#provider_service in
 // app/models/channel/whatsapp.rb dispatches on the `provider` column.
 
-import type { ChannelConfig } from '../../types.js';
-import type { WhatsappProvider } from './base.js';
+import type { WhatsappChannelConfig, WhatsappProvider } from './base.js';
 import { cloudProvider } from './cloud.js';
 import { dialog360Provider } from './dialog360.js';
 
-export type { WhatsappProvider } from './base.js';
+export type {
+  InboundWhatsappEvent,
+  InboundWhatsappMessageType,
+  InboundWhatsappStatus,
+  OutboundWhatsappMessage,
+  WhatsappChannelConfig,
+  WhatsappProvider,
+} from './base.js';
+export { normalizePhoneNumber, PHONE_NUMBER_REGEX } from './base.js';
 export { cloudProvider } from './cloud.js';
 export { dialog360Provider } from './dialog360.js';
 
-export function pickProvider(channel: ChannelConfig): WhatsappProvider {
-  const provider = (channel as { provider?: string }).provider ?? 'default';
-  switch (provider) {
+export function pickProvider(config: WhatsappChannelConfig): WhatsappProvider {
+  switch (config.provider) {
     case 'whatsapp_cloud':
       return cloudProvider;
-    case 'default':
+    case '360dialog':
       return dialog360Provider;
     default:
-      throw new Error(`not implemented: whatsapp provider "${provider}"`);
+      throw new Error(
+        `Unknown WhatsApp provider: ${(config as { provider?: string }).provider}`,
+      );
   }
 }

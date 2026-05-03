@@ -3,14 +3,11 @@
  * `app/javascript/shared/helpers/BaseActionCableConnector.js` (Rails
  * ActionCable) with a socket.io-client transport that talks to
  * `apps/realtime`.
- *
- * Skeleton only — the full transport, reconnect, and presence wiring
- * lands when `apps/realtime` is built.
  */
 
 import { io, type Socket } from 'socket.io-client';
 
-import type { RealtimeEventName } from './events';
+import type { RealtimeEvent, RealtimeEventName } from './events';
 
 const PRESENCE_INTERVAL_MS = 20_000; // mirrors BaseActionCableConnector
 const RECONNECT_INTERVAL_MS = 1_000; // mirrors BaseActionCableConnector
@@ -20,91 +17,119 @@ export type PresenceStatus = 'online' | 'offline' | 'busy';
 export interface RealtimeClientOptions {
   url: string;
   pubsubToken?: string;
-  accountId?: number;
-  userId?: number;
-  // Optional bearer-style auth token used for cross-domain WS auth (widget).
-  // Server-side maps this to `pubsubToken` during handshake.
+  accountId?: number | string;
+  userId?: number | string;
+  /**
+   * Bearer-style auth token used for cross-domain WS auth (widget). The
+   * server treats it as an alias for `pubsubToken` during the handshake.
+   */
   token?: string;
 }
 
-export type RealtimeListener = (data: unknown) => void;
+export type RealtimeListener<T = unknown> = (data: T) => void;
+
+type RealtimeEventDataFor<E extends RealtimeEventName> = Extract<
+  RealtimeEvent,
+  { event: E }
+>['data'];
 
 export interface RealtimeClient {
-  on(event: RealtimeEventName | string, cb: RealtimeListener): void;
-  off(event: RealtimeEventName | string, cb: RealtimeListener): void;
+  on<E extends RealtimeEventName>(
+    event: E,
+    cb: RealtimeListener<RealtimeEventDataFor<E>>,
+  ): void;
+  on(event: string, cb: RealtimeListener): void;
+  off<E extends RealtimeEventName>(
+    event: E,
+    cb: RealtimeListener<RealtimeEventDataFor<E>>,
+  ): void;
+  off(event: string, cb: RealtimeListener): void;
   connect(): void;
   disconnect(): void;
   updatePresence(status: PresenceStatus): void;
+  joinConversation(conversationId: number | string): void;
+  leaveConversation(conversationId: number | string): void;
 }
 
 export function createRealtimeClient(
-  options: RealtimeClientOptions
+  options: RealtimeClientOptions,
 ): RealtimeClient {
-  const { url, pubsubToken, accountId, userId } = options;
+  const { url, pubsubToken, accountId, userId, token } = options;
 
   let socket: Socket | null = null;
-  let presenceTimer: ReturnType<typeof setTimeout> | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let presenceTimer: ReturnType<typeof setInterval> | null = null;
   const listeners = new Map<string, Set<RealtimeListener>>();
 
   const startPresenceHeartbeat = () => {
-    // TODO: emit `update_presence` to apps/realtime every PRESENCE_INTERVAL_MS,
-    // mirroring BaseActionCableConnector#triggerPresenceInterval.
-    presenceTimer = setTimeout(() => {
-      socket?.emit('update_presence');
-      startPresenceHeartbeat();
+    stopPresenceHeartbeat();
+    presenceTimer = setInterval(() => {
+      socket?.emit('presence:heartbeat');
     }, PRESENCE_INTERVAL_MS);
   };
 
   const stopPresenceHeartbeat = () => {
     if (presenceTimer) {
-      clearTimeout(presenceTimer);
+      clearInterval(presenceTimer);
       presenceTimer = null;
     }
   };
 
-  const scheduleReconnect = () => {
-    // TODO: poll connection state every RECONNECT_INTERVAL_MS, mirroring
-    // BaseActionCableConnector#initReconnectTimer/checkConnection.
-    if (reconnectTimer) return;
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      socket?.connect();
-    }, RECONNECT_INTERVAL_MS);
+  const attachListeners = (target: Socket) => {
+    for (const [event, set] of listeners) {
+      for (const cb of set) {
+        target.on(event, cb);
+      }
+    }
   };
+
+  function on(event: string, cb: RealtimeListener): void {
+    let set = listeners.get(event);
+    if (!set) {
+      set = new Set();
+      listeners.set(event, set);
+    }
+    set.add(cb);
+    socket?.on(event, cb);
+  }
+
+  function off(event: string, cb: RealtimeListener): void {
+    listeners.get(event)?.delete(cb);
+    socket?.off(event, cb);
+  }
 
   return {
     connect() {
-      // TODO: wire full auth/handshake against apps/realtime.
+      if (socket) return;
       socket = io(url, {
-        auth: { pubsubToken, accountId, userId },
+        auth: {
+          pubsubToken: token ?? pubsubToken,
+          accountId,
+          userId,
+        },
         autoConnect: true,
         reconnection: true,
+        reconnectionDelay: RECONNECT_INTERVAL_MS,
+        transports: ['websocket', 'polling'],
       });
 
-      socket.on('disconnect', scheduleReconnect);
+      socket.on('connect', () => {
+        startPresenceHeartbeat();
+      });
 
-      // Re-attach any listeners registered before connect().
-      for (const [event, set] of listeners) {
-        for (const cb of set) {
-          socket.on(event, cb);
-        }
-      }
+      socket.on('disconnect', () => {
+        stopPresenceHeartbeat();
+      });
 
-      startPresenceHeartbeat();
+      attachListeners(socket);
     },
 
     disconnect() {
       stopPresenceHeartbeat();
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
       socket?.disconnect();
       socket = null;
     },
 
-    on(event, cb) {
+    on(event: string, cb: RealtimeListener) {
       let set = listeners.get(event);
       if (!set) {
         set = new Set();
@@ -114,15 +139,21 @@ export function createRealtimeClient(
       socket?.on(event, cb);
     },
 
-    off(event, cb) {
+    off(event: string, cb: RealtimeListener) {
       listeners.get(event)?.delete(cb);
       socket?.off(event, cb);
     },
 
-    updatePresence(status) {
-      // TODO: forward presence status to apps/realtime once the server
-      // contract is finalised.
-      socket?.emit('update_presence', { status });
+    updatePresence(status: PresenceStatus) {
+      socket?.emit('presence:update', { status });
+    },
+
+    joinConversation(conversationId) {
+      socket?.emit('conversation:join', { conversationId });
+    },
+
+    leaveConversation(conversationId) {
+      socket?.emit('conversation:leave', { conversationId });
     },
   };
 }

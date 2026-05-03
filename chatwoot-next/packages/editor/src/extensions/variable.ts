@@ -1,7 +1,12 @@
 // Source: app/javascript/dashboard/components/widgets/WootWriter/Editor.vue
 // (variable picker triggered by `{{`, inserts a non-editable atom that
 // serializes back to plain `{{key}}` text on send).
-import { Node, mergeAttributes, type Range } from '@tiptap/core';
+import {
+  Node,
+  mergeAttributes,
+  type Editor,
+  type Range,
+} from '@tiptap/core';
 import Suggestion, {
   type SuggestionOptions,
   type SuggestionProps,
@@ -77,7 +82,7 @@ export const Variable = Node.create<VariableOptions>({
           range,
           props,
         }: {
-          editor: typeof this.editor;
+          editor: Editor;
           range: Range;
           props: VariableItem;
         }) => {

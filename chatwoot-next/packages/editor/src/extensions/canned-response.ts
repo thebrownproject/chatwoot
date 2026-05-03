@@ -1,7 +1,7 @@
 // Source: app/javascript/dashboard/components/widgets/WootWriter/Editor.vue
 // (canned-response suggestion plugin: trigger `/`, search by short-code,
 // inserts response content on selection).
-import { Extension, type Range } from '@tiptap/core';
+import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion, {
   type SuggestionOptions,
   type SuggestionProps,
@@ -41,7 +41,7 @@ export const CannedResponse = Extension.create<CannedResponseOptions>({
           range,
           props,
         }: {
-          editor: typeof this.editor;
+          editor: Editor;
           range: Range;
           props: CannedItem;
         }) => {

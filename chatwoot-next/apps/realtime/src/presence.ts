@@ -17,33 +17,50 @@ export const PRESENCE_TTL_SECONDS = 60;
 export const PRESENCE_HEARTBEAT_SECONDS = 20;
 
 export type Availability = 'online' | 'busy' | 'offline';
+export type PresenceKind = 'user' | 'contact';
 
-const presenceKey = (kind: 'user' | 'contact', id: number | string): string =>
+const presenceKey = (kind: PresenceKind, id: number | string | bigint): string =>
   `presence:${kind}:${id}`;
 
-export const trackPresence = async (
+export const markOnline = async (
   redis: Redis,
-  kind: 'user' | 'contact',
-  id: number | string,
-  availability: Availability = 'online'
+  kind: PresenceKind,
+  id: number | string | bigint,
+  availability: Availability = 'online',
 ): Promise<void> => {
-  // TODO: also publish a `presence.update` event on the account room so
-  // dashboards refresh availability dots in real time.
   await redis.set(presenceKey(kind, id), availability, 'EX', PRESENCE_TTL_SECONDS);
 };
 
-export const heartbeat = async (
+export const markOffline = async (
   redis: Redis,
-  kind: 'user' | 'contact',
-  id: number | string
+  kind: PresenceKind,
+  id: number | string | bigint,
+): Promise<void> => {
+  await redis.del(presenceKey(kind, id));
+};
+
+export const extendHeartbeat = async (
+  redis: Redis,
+  kind: PresenceKind,
+  id: number | string | bigint,
 ): Promise<void> => {
   await redis.expire(presenceKey(kind, id), PRESENCE_TTL_SECONDS);
 };
 
-export const clearPresence = async (
+export interface PresenceSnapshot {
+  online: boolean;
+  availability?: Availability;
+}
+
+export const getPresence = async (
   redis: Redis,
-  kind: 'user' | 'contact',
-  id: number | string
-): Promise<void> => {
-  await redis.del(presenceKey(kind, id));
+  kind: PresenceKind,
+  id: number | string | bigint,
+): Promise<PresenceSnapshot> => {
+  const raw = await redis.get(presenceKey(kind, id));
+  if (!raw) return { online: false };
+  if (raw === 'online' || raw === 'busy' || raw === 'offline') {
+    return { online: raw !== 'offline', availability: raw };
+  }
+  return { online: true };
 };

@@ -13,21 +13,22 @@
     "clean": "rimraf dist .turbo"
   },
   "dependencies": {
-    "bullmq": "^5.21.0",
-    "ioredis": "^5.4.0",
-    "imapflow": "^1.0.0",
-    "nodemailer": "^6.9.0",
-    "pino": "^9.5.0",
-    "@chatwoot-next/db": "workspace:*",
-    "@chatwoot-next/core": "workspace:*",
     "@chatwoot-next/channels": "workspace:*",
-    "@chatwoot-next/integrations": "workspace:*"
+    "@chatwoot-next/core": "workspace:*",
+    "@chatwoot-next/db": "workspace:*",
+    "@chatwoot-next/integrations": "workspace:*",
+    "bullmq": "^5.21.0",
+    "imapflow": "^1.0.0",
+    "ioredis": "^5.4.0",
+    "nodemailer": "^6.9.0",
+    "pino": "^9.5.0"
   },
   "devDependencies": {
-    "typescript": "*",
     "@types/node": "*",
     "@types/nodemailer": "*",
+    "ioredis-mock": "^8.9.0",
     "tsx": "^4.19.0",
+    "typescript": "*",
     "vitest": "*"
   }
 }

@@ -1,25 +1,37 @@
-import { Worker, type Processor } from 'bullmq';
-import { connection } from '../redis.js';
+import { Worker, type Job, type Processor } from 'bullmq';
+import { createBlockingRedis } from '../redis.js';
 import { logger } from '../logger.js';
-import { jobHandlers } from '../jobs/index.js';
 import type { QueueName } from '../queues.js';
+import { defaultProcessor } from './processor.js';
 
-// Default processor: dispatches `job.name` to the matching handler in
-// `src/jobs`. Each per-queue worker module wraps this so we can tune
-// concurrency or override the processor later if needed.
-export const defaultProcessor: Processor = async (job) => {
-  const handler = jobHandlers[job.name];
-  if (!handler) {
-    logger.warn({ jobName: job.name, queue: job.queueName }, 'no handler registered');
-    throw new Error(`no handler for job ${job.name}`);
-  }
-  return handler(job.data);
-};
+function concurrencyFor(queue: QueueName): number {
+  const envKey = `WORKER_CONCURRENCY_${queue.toUpperCase()}`;
+  const raw = process.env[envKey] ?? process.env.WORKER_CONCURRENCY ?? '5';
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+}
 
-export function createWorker(queue: QueueName, processor: Processor = defaultProcessor): Worker {
-  const worker = new Worker(queue, processor, { connection });
-  worker.on('failed', (job, err) => {
-    logger.error({ queue, jobName: job?.name, err: err.message }, 'job failed');
+export function createWorker(
+  name: QueueName,
+  processor: Processor = defaultProcessor,
+): Worker {
+  const worker = new Worker(name, processor, {
+    connection: createBlockingRedis(),
+    concurrency: concurrencyFor(name),
   });
+
+  worker.on('failed', (job: Job | undefined, err: Error) => {
+    logger.error(
+      { jobId: job?.id, name: job?.name, queue: name, err: err.message },
+      'job failed',
+    );
+  });
+
+  worker.on('completed', (job: Job) => {
+    logger.debug({ jobId: job.id, name: job.name, queue: name }, 'job completed');
+  });
+
   return worker;
 }
+
+export { defaultProcessor };
