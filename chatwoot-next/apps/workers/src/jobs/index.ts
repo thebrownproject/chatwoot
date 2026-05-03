@@ -1,10 +1,11 @@
+import type { Job } from 'bullmq';
 import { fetchImapInboxes } from './imap-fetch.js';
 import { runPeriodicAutoAssignment } from './auto-assignment.js';
 import { sendReply } from './send-reply.js';
 import { dispatchWebhook } from './webhook.js';
 import { dispatchEvent } from './event-dispatcher.js';
 
-export type JobHandler = (payload: unknown) => Promise<unknown>;
+export type JobHandler = (payload: unknown, job: Job) => Promise<unknown>;
 
 const notImplemented: JobHandler = async () => {
   throw new Error('not implemented');

@@ -1,4 +1,4 @@
-import type { DbClient } from './client';
+import type { DbClient } from './client.js';
 
 export interface AccountScopedDb {
   db: DbClient;

@@ -17,6 +17,7 @@
     "@socket.io/redis-adapter": "^8.3.0",
     "ioredis": "^5.4.0",
     "pino": "^9.5.0",
+    "drizzle-orm": "^0.36.0",
     "@chatwoot-next/db": "workspace:*",
     "@chatwoot-next/auth": "workspace:*",
     "@chatwoot-next/realtime-client": "workspace:*"

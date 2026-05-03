@@ -103,8 +103,8 @@ export const start = async (): Promise<StartedServer> => {
     const kind: PresenceKind = ctx.kind;
     const presenceId = ctx.id;
 
-    void socket.join(accountRoom(ctx.accountId));
-    void socket.join(userRoom(ctx.id));
+    void socket.join(accountRoom(String(ctx.accountId)));
+    void socket.join(userRoom(String(ctx.id)));
 
     const conversationId = optionalIdFromHandshake(authed, 'conversationId');
     if (conversationId) void socket.join(conversationRoom(conversationId));

@@ -99,6 +99,7 @@ export interface PubsubLookupRow {
   id: string | number | bigint;
   account_id: string | number | bigint;
   pubsub_token: string;
+  [key: string]: unknown;
 }
 
 export interface AuthDeps {
