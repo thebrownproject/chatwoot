@@ -16,9 +16,12 @@
   },
   "dependencies": {
     "@tiptap/core": "^2.10.0",
+    "@tiptap/extension-mention": "^2.10.0",
+    "@tiptap/html": "^2.10.0",
+    "@tiptap/pm": "^2.10.0",
     "@tiptap/react": "^2.10.0",
     "@tiptap/starter-kit": "^2.10.0",
-    "@tiptap/pm": "^2.10.0",
+    "@tiptap/suggestion": "^2.10.0",
     "react": "^18.3.0"
   },
   "peerDependencies": {
@@ -26,8 +29,9 @@
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
     "@types/react": "^18.3.0",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }
 }

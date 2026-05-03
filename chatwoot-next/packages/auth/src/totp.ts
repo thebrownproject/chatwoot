@@ -9,6 +9,15 @@ export function verifyTotp(secret: string, token: string): boolean {
 }
 
 /**
+ * Convenience helper: verify a code against a stored `users.otp_secret`.
+ * Argument order mirrors how callers typically receive the inputs (otp from
+ * the request, secret from the user record).
+ */
+export function verifyOtpAgainstSecret(otp: string, otpSecret: string): boolean {
+  return authenticator.verify({ token: otp, secret: otpSecret });
+}
+
+/**
  * Generate a new base32 TOTP secret suitable for `users.otp_secret`.
  */
 export function generateTotpSecret(): string {

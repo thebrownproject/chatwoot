@@ -1,3 +1,6 @@
+import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
+
 /**
  * devise-token_auth compatible token validator.
  *
@@ -20,54 +23,67 @@ export type DeviseTokenTuple = {
 export type DeviseTokenEntry = {
   token: string;
   expiry: number;
-  last_token?: string | null;
-  updated_at?: string;
+  last_token?: string;
+  updated_at: string;
 };
 
 export type DeviseTokensJson = Record<string, DeviseTokenEntry>;
 
 export type ValidateDeviseTokenResult = {
   valid: boolean;
-  userId?: bigint;
+  reason?: string;
 };
+
+const TOKEN_LIFETIME_SECONDS = 60 * 60 * 24 * 60; // 60 days
+const MAX_CLIENT_TOKENS = 25; // devise-token_auth default
+const TOKEN_BCRYPT_COST = 10; // devise-token_auth uses 10 for tokens
 
 /**
  * Validate a devise-token_auth header tuple against a user's `tokens` JSON.
  *
- * Returns `{ valid: true, userId }` if the access-token matches the stored
- * bcrypt hash for the supplied `client` and the entry has not expired.
+ * Returns `{ valid: true }` if the access-token matches the stored bcrypt
+ * hash for the supplied `client` and the entry has not expired. Falls back
+ * to `last_token` to cover devise-token_auth's grace window for in-flight
+ * requests.
  */
-export function validateDeviseToken(
+export async function validateDeviseToken(
   headers: DeviseTokenTuple,
-  tokensJson: DeviseTokensJson,
-  userId?: bigint,
-): ValidateDeviseTokenResult {
+  tokensJson: DeviseTokensJson | null | undefined,
+): Promise<ValidateDeviseTokenResult> {
+  if (!tokensJson) return { valid: false, reason: 'no-tokens' };
+
   const entry = tokensJson[headers.client];
-  if (!entry) return { valid: false };
+  if (!entry) return { valid: false, reason: 'unknown-client' };
 
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  if (entry.expiry && entry.expiry < nowSeconds) return { valid: false };
+  const nowSeconds = Date.now() / 1000;
+  if (nowSeconds > entry.expiry) return { valid: false, reason: 'expired' };
 
-  // TODO: bcrypt-compare `headers.accessToken` against `entry.token` using
-  // bcryptjs.compare. devise-token_auth hashes tokens with bcrypt before
-  // persisting them, so plaintext equality won't match.
-  // TODO: fall back to `entry.last_token` (devise-token_auth's grace window
-  // for in-flight requests) when the primary token comparison fails and
-  // `updated_at` is within the configured `batch_request_buffer_throttle`.
+  if (await bcrypt.compare(headers.accessToken, entry.token)) {
+    return { valid: true };
+  }
 
-  const valid = false;
-  return valid && userId !== undefined ? { valid, userId } : { valid: false };
+  if (entry.last_token) {
+    if (await bcrypt.compare(headers.accessToken, entry.last_token)) {
+      return { valid: true };
+    }
+  }
+
+  return { valid: false, reason: 'token-mismatch' };
 }
 
 /**
- * Pull the four devise-token_auth headers off an incoming Request. Returns
- * null if any are missing, so callers can short-circuit unauthenticated paths.
+ * Pull the four devise-token_auth headers off an incoming Request or Headers
+ * instance. Returns null if any are missing, so callers can short-circuit
+ * unauthenticated paths.
  */
-export function extractDeviseHeaders(request: Request): DeviseTokenTuple | null {
-  const accessToken = request.headers.get('access-token');
-  const client = request.headers.get('client');
-  const uid = request.headers.get('uid');
-  const expiryRaw = request.headers.get('expiry');
+export function extractDeviseHeaders(
+  request: Request | Headers,
+): DeviseTokenTuple | null {
+  const headers = request instanceof Headers ? request : request.headers;
+  const accessToken = headers.get('access-token');
+  const client = headers.get('client');
+  const uid = headers.get('uid');
+  const expiryRaw = headers.get('expiry');
 
   if (!accessToken || !client || !uid || !expiryRaw) return null;
 
@@ -75,4 +91,58 @@ export function extractDeviseHeaders(request: Request): DeviseTokenTuple | null 
   if (!Number.isFinite(expiry)) return null;
 
   return { accessToken, client, uid, expiry };
+}
+
+export type MintDeviseTokenResult = {
+  tokens: DeviseTokensJson;
+  tuple: DeviseTokenTuple;
+  rawToken: string;
+};
+
+/**
+ * Mint a fresh devise-token_auth entry for the given client. Returns the new
+ * tokens JSON (caller persists it), the header tuple to send back (caller
+ * fills `uid`), and the raw plaintext token for completeness.
+ *
+ * Rotation: if `clientId` already exists in `currentTokens`, the previous
+ * hashed token is preserved as `last_token` so concurrent in-flight requests
+ * keep working during the swap.
+ */
+export async function mintDeviseToken(
+  currentTokens: DeviseTokensJson | null | undefined,
+  clientId?: string,
+): Promise<MintDeviseTokenResult> {
+  const tokens: DeviseTokensJson = { ...(currentTokens ?? {}) };
+  const client = clientId ?? crypto.randomBytes(10).toString('hex');
+  const rawToken = crypto.randomBytes(20).toString('hex');
+  const hashedToken = await bcrypt.hash(rawToken, TOKEN_BCRYPT_COST);
+  const expiry = Math.floor(Date.now() / 1000) + TOKEN_LIFETIME_SECONDS;
+
+  const previous = tokens[client];
+  const entry: DeviseTokenEntry = {
+    token: hashedToken,
+    expiry,
+    updated_at: new Date().toISOString(),
+  };
+  if (previous?.token) entry.last_token = previous.token;
+  tokens[client] = entry;
+
+  // Cap concurrent client entries; drop oldest by updated_at.
+  const clientIds = Object.keys(tokens);
+  if (clientIds.length > MAX_CLIENT_TOKENS) {
+    const sorted = clientIds
+      .map((id) => ({ id, updatedAt: tokens[id]?.updated_at ?? '' }))
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    const overflow = sorted.length - MAX_CLIENT_TOKENS;
+    for (let i = 0; i < overflow; i += 1) {
+      const drop = sorted[i];
+      if (drop) delete tokens[drop.id];
+    }
+  }
+
+  return {
+    tokens,
+    tuple: { accessToken: rawToken, client, uid: '', expiry },
+    rawToken,
+  };
 }

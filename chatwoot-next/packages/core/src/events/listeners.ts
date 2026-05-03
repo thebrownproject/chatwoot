@@ -1,9 +1,9 @@
 import type { DomainEvent } from './publish.js';
 
-export type Listener = (event: DomainEvent) => Promise<void>;
+export type Listener = (event: DomainEvent) => Promise<void> | void;
 
 /**
- * listenerRegistry — replaces Rails `app/listeners/` (and the AR callbacks
+ * ListenerRegistry — replaces Rails `app/listeners/` (and the AR callbacks
  * those listeners replaced upstream). Listeners register themselves at boot
  * via `register(eventName, fn)`. The Enterprise package adds extra listeners
  * via the same registry — no overrides, just additional registrations.
@@ -20,20 +20,31 @@ export class ListenerRegistry {
     bucket.add(listener);
   }
 
-  async dispatch(event: DomainEvent): Promise<void> {
-    const bucket = this.listeners.get(event.event);
+  unregister(eventName: string, listener: Listener): void {
+    const bucket = this.listeners.get(eventName);
     if (!bucket) return;
+    bucket.delete(listener);
+    if (bucket.size === 0) this.listeners.delete(eventName);
+  }
 
-    await Promise.all(
-      Array.from(bucket).map(async (listener) => {
-        try {
-          await listener(event);
-        } catch (_err) {
-          // TODO: wire structured logger (pino) — swallow + log so a single
-          // bad listener does not break the dispatch chain.
-        }
-      }),
+  async dispatch(eventName: string, event: DomainEvent): Promise<void> {
+    const bucket = this.listeners.get(eventName);
+    if (!bucket || bucket.size === 0) return;
+
+    const results = await Promise.allSettled(
+      Array.from(bucket, listener => Promise.resolve().then(() => listener(event))),
     );
+
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        // TODO: swap for pino once `packages/core` adopts a structured logger.
+        // eslint-disable-next-line no-console
+        console.warn('[ListenerRegistry] listener rejected', {
+          eventName,
+          reason: result.reason,
+        });
+      }
+    }
   }
 }
 
