@@ -266,6 +266,9 @@ importers:
       '@chatwoot-next/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      drizzle-orm:
+        specifier: ^0.36.0
+        version: 0.36.4(@types/react@18.3.28)(postgres@3.4.9)(react@18.3.1)
       next:
         specifier: ^15.0.0
         version: 15.5.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -309,6 +312,9 @@ importers:
       typescript:
         specifier: '*'
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.17)(jsdom@25.0.1)
 
   apps/widget:
     dependencies:
