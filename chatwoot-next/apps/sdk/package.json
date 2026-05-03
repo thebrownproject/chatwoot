@@ -1,0 +1,22 @@
+{
+  "name": "@chatwoot-next/sdk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@chatwoot-next/sdk-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "typescript": "*",
+    "vitest": "*",
+    "@types/node": "*"
+  }
+}

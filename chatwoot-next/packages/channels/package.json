@@ -1,0 +1,40 @@
+{
+  "name": "@chatwoot-next/channels",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/api/index.ts",
+    "./email": "./src/email/index.ts",
+    "./facebook": "./src/facebook/index.ts",
+    "./instagram": "./src/instagram/index.ts",
+    "./line": "./src/line/index.ts",
+    "./sms": "./src/sms/index.ts",
+    "./telegram": "./src/telegram/index.ts",
+    "./tiktok": "./src/tiktok/index.ts",
+    "./twilio-sms": "./src/twilio-sms/index.ts",
+    "./twitter": "./src/twitter/index.ts",
+    "./web-widget": "./src/web-widget/index.ts",
+    "./whatsapp": "./src/whatsapp/index.ts",
+    "./voice": "./src/voice/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit false",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@chatwoot-next/db": "workspace:*",
+    "@chatwoot-next/core": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

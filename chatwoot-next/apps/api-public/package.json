@@ -1,0 +1,29 @@
+{
+  "name": "@chatwoot-next/api-public",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf .next .turbo"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@chatwoot-next/db": "workspace:*",
+    "@chatwoot-next/core": "workspace:*",
+    "@chatwoot-next/sdk-shared": "workspace:*",
+    "@chatwoot-next/channels": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "@types/react": "*",
+    "@types/node": "*",
+    "eslint-config-next": "^15.0.0"
+  }
+}

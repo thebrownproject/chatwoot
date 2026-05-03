@@ -1,0 +1,39 @@
+{
+  "name": "@chatwoot-next/integrations",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./slack": "./src/slack/index.ts",
+    "./linear": "./src/linear/index.ts",
+    "./dialogflow": "./src/dialogflow/index.ts",
+    "./openai": "./src/openai/index.ts",
+    "./captain": "./src/captain/index.ts",
+    "./dyte": "./src/dyte/index.ts",
+    "./google-translate": "./src/google-translate/index.ts",
+    "./leadsquared": "./src/leadsquared/index.ts",
+    "./clearbit": "./src/clearbit/index.ts",
+    "./notion": "./src/notion/index.ts",
+    "./shopify": "./src/shopify/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit false",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@chatwoot-next/db": "workspace:*",
+    "@chatwoot-next/core": "workspace:*",
+    "openai": "^4.70.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

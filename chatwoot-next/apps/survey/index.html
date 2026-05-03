@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chatwoot Survey Dev Harness</title>
+  </head>
+  <body>
+    <div id="cw-survey-host"></div>
+    <script type="module">
+      import { mount } from '/src/index.tsx';
+      mount(document.getElementById('cw-survey-host'), {
+        surveyToken: 'dev-token',
+        baseUrl: 'http://localhost:3000',
+      });
+    </script>
+  </body>
+</html>
