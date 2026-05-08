@@ -143,7 +143,7 @@ export async function createConversation(
 
   await createEvent(db, {
     conversationId: id,
-    actorId: data.assigneeId ?? 'system',
+    actorId: data.actorId ?? 'system',
     eventType: 'created',
     payload: { channelOrigin: data.channelOrigin },
   });
