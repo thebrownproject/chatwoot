@@ -1,0 +1,37 @@
+{
+  "name": "@buildpass/routing",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./routes/routing-rules": "./src/routes/routing-rules.ts",
+    "./routes/teams": "./src/routes/teams.ts",
+    "./jobs/snooze-scheduler": "./src/jobs/snooze-scheduler.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit false",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "bullmq": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "bullmq": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
