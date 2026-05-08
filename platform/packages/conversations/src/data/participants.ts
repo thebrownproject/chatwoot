@@ -36,6 +36,11 @@ export async function removeParticipant(
     throw new Error(`User ${userId} is not a participant in conversation ${conversationId}`);
   }
 
+  const role = await db.participants.getRole(conversationId, userId);
+  if (role === 'contact') {
+    throw new Error('Cannot remove the contact from their own conversation');
+  }
+
   await db.participants.remove(conversationId, userId);
 
   await db.events.create({
