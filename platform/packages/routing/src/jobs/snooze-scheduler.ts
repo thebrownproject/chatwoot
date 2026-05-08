@@ -31,6 +31,14 @@ export async function checkSnoozedConversations(db: RoutingDb): Promise<number> 
   for (const conversation of due) {
     try {
       await db.updateConversationStatus(conversation.id, 'open');
+      if (db.createConversationEvent) {
+        await db.createConversationEvent({
+          conversationId: conversation.id,
+          actorId: 'system',
+          eventType: 'reopened',
+          payload: { reason: 'snooze_expired', from: 'snoozed', to: 'open' },
+        });
+      }
       reopened++;
     } catch (err) {
       console.error(`Failed to unsnooze conversation ${conversation.id}:`, err);
