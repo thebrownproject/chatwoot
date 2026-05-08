@@ -3,10 +3,41 @@
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./routes": "./src/routes/conversations.ts",
+    "./data": "./src/data/conversations.ts",
+    "./status-machine": "./src/data/status-machine.ts",
+    "./data/participants": "./src/data/participants.ts",
+    "./data/assignment": "./src/data/assignment.ts",
+    "./data/events": "./src/data/events.ts",
+    "./data/messages": "./src/data/messages.ts",
+    "./data/labels": "./src/data/labels.ts",
+    "./data/canned-responses": "./src/data/canned-responses.ts",
+    "./routes/participants": "./src/routes/participants.ts",
+    "./routes/assignment": "./src/routes/assignment.ts",
+    "./routes/events": "./src/routes/events.ts",
+    "./routes/messages": "./src/routes/messages.ts",
+    "./routes/labels": "./src/routes/labels.ts",
+    "./routes/canned-responses": "./src/routes/canned-responses.ts"
+  },
   "scripts": {
-    "build": "tsc",
-    "lint": "eslint src/",
+    "build": "tsc --noEmit false",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@buildpass/db": "workspace:*",
+    "hono": "^4.6.0",
+    "drizzle-orm": "^0.36.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }
