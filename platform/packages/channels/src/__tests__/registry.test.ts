@@ -1,12 +1,31 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { registerAdapter, getAdapter, listAdapters } from '../registry.js';
-import type { ChannelAdapter } from '../types.js';
+import type { ChannelAdapter, NormalizedMessage, FormattedMessage } from '../types.js';
+
+const mockNormalized: NormalizedMessage = {
+  conversationId: 'c-1',
+  senderId: 's-1',
+  senderType: 'contact',
+  type: 'text',
+  visibility: 'public',
+  body: 'hi',
+  timestamp: new Date(),
+};
+
+const mockFormatted: FormattedMessage = {
+  id: 'm-1',
+  conversationId: 'c-1',
+  sender: { id: 's-1', name: 'Test', type: 'contact' },
+  body: 'hi',
+  timestamp: new Date().toISOString(),
+  type: 'text',
+};
 
 const mockAdapter: ChannelAdapter = {
   type: 'web_chat',
-  receive: async () => ({ id: '1', conversationId: 'c-1', senderId: 's-1', body: 'hi', timestamp: new Date() }),
+  receive: () => mockNormalized,
   deliver: async () => ({ success: true }),
-  formatMessage: (msg) => ({ body: msg.body ?? '', senderName: 'Test', timestamp: new Date().toISOString() }),
+  formatMessage: () => mockFormatted,
 };
 
 describe('channel registry', () => {
@@ -17,7 +36,7 @@ describe('channel registry', () => {
   });
 
   it('throws for unregistered channel type', () => {
-    expect(() => getAdapter('sms' as any)).toThrow('No channel adapter registered for type: sms');
+    expect(() => getAdapter('sms')).toThrow('No channel adapter registered for type: sms');
   });
 
   it('lists registered adapter types', () => {
