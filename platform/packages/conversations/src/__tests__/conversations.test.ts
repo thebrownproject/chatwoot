@@ -284,8 +284,19 @@ describe('snoozeConversation', () => {
     const conv = await createConversation(db, { channelOrigin: 'email' });
     await resolveConversation(db, conv.id, 'agent-1');
 
-    const result = await snoozeConversation(db, conv.id, 'agent-1', new Date());
+    const result = await snoozeConversation(db, conv.id, 'agent-1', new Date('2099-01-01'));
     expect(result.ok).toBe(false);
+  });
+
+  it('rejects snoozing with a past date', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    const pastDate = new Date('2020-01-01T00:00:00Z');
+
+    const result = await snoozeConversation(db, conv.id, 'agent-1', pastDate);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('future');
+    }
   });
 });
 
