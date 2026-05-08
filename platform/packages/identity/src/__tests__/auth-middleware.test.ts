@@ -137,6 +137,28 @@ describe('auth middleware', () => {
     expect(body.error).toBe('Invalid API key');
   });
 
+  it('returns 401 when stored hash is not scrypt format', async () => {
+    const agentUser = makeUser({
+      id: 'u-agent',
+      type: 'ai_agent',
+      name: 'Ron',
+      api_key_hash: 'not-a-scrypt-hash-no-colon',
+    });
+    const deps: AuthMiddlewareDeps = {
+      userDb: mockUserDb({
+        findByApiKeyHash: vi.fn().mockResolvedValue(agentUser),
+      }),
+      verifyClerkToken: vi.fn(),
+      hashApiKey: vi.fn().mockReturnValue('lookup-hash'),
+    };
+    const app = createTestApp(deps);
+
+    const res = await app.request('/protected', {
+      headers: { 'X-API-Key': 'some-key' },
+    });
+    expect(res.status).toBe(401);
+  });
+
   it('prefers Bearer token over X-API-Key when both present', async () => {
     const user = makeUser({ clerk_id: 'clerk_abc' });
     const deps: AuthMiddlewareDeps = {
