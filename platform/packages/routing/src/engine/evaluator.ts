@@ -29,7 +29,7 @@ export function evaluate(
 ): RuleMatch | null {
   const activeRules = rules
     .filter((r) => r.active)
-    .sort((a, b) => a.priority - b.priority);
+    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
 
   for (const rule of activeRules) {
     if (matchConditions(conversation, rule.conditions)) {
