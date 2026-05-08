@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "paths": {
+      "@buildpass/conversations": ["./packages/conversations/src"],
+      "@buildpass/identity": ["./packages/identity/src"],
+      "@buildpass/channels": ["./packages/channels/src"],
+      "@buildpass/routing": ["./packages/routing/src"],
+      "@buildpass/agents": ["./packages/agents/src"],
+      "@buildpass/knowledge-base": ["./packages/knowledge-base/src"],
+      "@buildpass/notifications": ["./packages/notifications/src"],
+      "@buildpass/analytics": ["./packages/analytics/src"],
+      "@buildpass/shell": ["./packages/shell/src"],
+      "@buildpass/db": ["./packages/db/src"]
+    }
+  }
+}
