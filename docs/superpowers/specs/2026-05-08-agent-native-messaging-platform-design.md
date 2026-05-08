@@ -66,6 +66,17 @@ Design principles (from deep-module thinking):
 | UI | shadcn/ui (Radix + Tailwind v4) | Matches Buildpass core-ui patterns, components owned not imported |
 | Testing | Vitest (unit) + Playwright (E2E) | Matches Buildpass core-ui |
 | Jobs/Queue | BullMQ (Redis-backed) | Background jobs for channel delivery, agent processing, notifications |
+| Redis | Upstash (serverless) | Managed Redis for pub/sub, BullMQ, presence. No ops burden for a background project |
+| Deployment | Fly.io | Supports WebSockets natively, Hono runs well on it, Fraser already uses it for BuildClaw |
+
+### Server Topology
+
+Two servers, independently deployed:
+
+- **Hono API server** (Fly.io) — REST API + WebSocket endpoint. Handles all message processing, channel adapters, realtime delivery. Validates Clerk JWTs for human auth, API keys for agent auth.
+- **Next.js web app** (Vercel or Fly.io) — agent dashboard UI. Calls the Hono API. No direct DB access.
+
+In local dev, Next.js proxies API requests to Hono via `next.config.js` rewrites. In production, the Next.js app calls the Hono API directly (same Fly.io private network, or public with CORS).
 
 ## Module Decomposition
 
@@ -89,11 +100,11 @@ Modules register via a central registry. Route files in `src/app` are thin adapt
 
 | Module | Responsibility |
 |---|---|
-| **conversations** | Core inbox. Conversation CRUD, status machine (open -> pending -> snoozed -> resolved), participant management, messages, assignment, conversation events/audit log |
-| **identity** | Auth (Clerk integration + agent API keys), user profiles, presence, permissions. Single User model for humans and agents |
-| **channels** | Channel adapters. Email + web chat first. Each adapter implements: receive(), deliver(), formatMessage(). Channel-agnostic conversation creation |
-| **routing** | Assignment rules, round-robin, team-based routing, queue management. Evaluates rules on conversation creation/update |
-| **shell** | Product chrome — sidebar, navigation, layout, module registry |
+| **conversations** | Core inbox. Conversation CRUD, status machine (open -> pending -> snoozed -> resolved), participant management, messages, assignment, conversation events/audit log, canned responses, full-text search |
+| **identity** | Auth (Clerk integration + agent API keys), user profiles, permissions, contact deduplication (email-based). Single User model for humans and agents. Presence is Redis-derived, not stored in Postgres |
+| **channels** | Channel adapters. Email + web chat first. Each adapter implements: receive(), deliver(), formatMessage(). Channel-agnostic conversation creation. Conversations are locked to one channel for MVP |
+| **routing** | Assignment rules, round-robin, team-based routing, queue management. Evaluates rules on conversation creation/update. Moved to Phase 1.5 — manual assignment is sufficient for initial MVP |
+| **shell** | Product chrome — sidebar, navigation, layout, module registry. Inbox views: my assignments, team unassigned, filtered by channel/status/label |
 | **db** | Drizzle schema, Neon client, data access adapter seam |
 
 ### P1 — Phase 2 (Agent-Native + KB)
@@ -119,7 +130,6 @@ Modules register via a central registry. Route files in `src/app` are thin adapt
 | email | text (nullable) | Humans and contacts |
 | avatar_url | text (nullable) | |
 | metadata | jsonb | Agent: model, capabilities, version. Contact: company, phone |
-| status | enum: online, offline, away, busy | Presence |
 | clerk_id | text (nullable) | Humans only — Clerk integration |
 | api_key_hash | text (nullable) | Agents only — API key auth |
 | created_at | timestamptz | |
@@ -141,14 +151,17 @@ Modules register via a central registry. Route files in `src/app` are thin adapt
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid | PK |
+| display_id | serial | Auto-incrementing human-readable ticket number (#4521) |
 | status | enum: open, pending, snoozed, resolved | State machine |
 | channel_origin | enum: email, web_chat, sms, slack, in_app | Where it started |
+| assignee_id | uuid (nullable) | FK -> User. Single assignee enforced at schema level |
 | subject | text (nullable) | Email subject or manual title |
 | priority | enum: low, medium, high, urgent | |
-| snoozed_until | timestamptz (nullable) | Auto-reopen |
+| snoozed_until | timestamptz (nullable) | Auto-reopen via BullMQ scheduled job |
 | first_reply_at | timestamptz (nullable) | KPI: time to first reply |
 | resolved_at | timestamptz (nullable) | KPI: resolution time |
-| metadata | jsonb | Buildpass project ID, tags, custom fields |
+| metadata | jsonb | Buildpass project ID, custom fields |
+| search_vector | tsvector | Full-text search index (subject + metadata) |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
@@ -159,7 +172,7 @@ Modules register via a central registry. Route files in `src/app` are thin adapt
 | id | uuid | PK |
 | conversation_id | uuid | FK -> Conversation |
 | user_id | uuid | FK -> User |
-| role | enum: owner, assignee, observer, copilot | owner = customer. copilot = agent-behind-the-scenes |
+| role | enum: contact, assignee, observer, copilot | contact = customer. copilot = agent-behind-the-scenes. Assignment tracked on Conversation.assignee_id, not here |
 | joined_at | timestamptz | |
 | left_at | timestamptz (nullable) | |
 
@@ -170,8 +183,8 @@ Modules register via a central registry. Route files in `src/app` are thin adapt
 | id | uuid | PK |
 | conversation_id | uuid | FK -> Conversation |
 | sender_id | uuid | FK -> User |
-| type | enum: text, rich, activity, internal_note | |
-| visibility | enum: public, internal | Copilot messages default to internal |
+| type | enum: text, rich, activity | No separate internal_note type — use visibility: internal on any type |
+| visibility | enum: public, internal | Copilot messages default to internal. Internal notes = type: text + visibility: internal |
 | body | text | Plain text content |
 | body_html | text (nullable) | Rich formatted content |
 | metadata | jsonb | Agent messages: reasoning traces, tool calls, confidence |
@@ -189,6 +202,36 @@ Modules register via a central registry. Route files in `src/app` are thin adapt
 | event_type | text | assigned, status_changed, participant_joined, escalated, snoozed, resolved |
 | payload | jsonb | Event-specific data (e.g., {from: "open", to: "resolved"}) |
 | created_at | timestamptz | |
+
+**Label** — extracted from jsonb for efficient KPI queries.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | PK |
+| name | text | e.g., "billing", "onboarding", "bug" |
+| color | text (nullable) | Hex color for UI |
+| created_at | timestamptz | |
+
+**ConversationLabel**
+
+| Column | Type | Notes |
+|---|---|---|
+| conversation_id | uuid | FK -> Conversation |
+| label_id | uuid | FK -> Label |
+
+**CannedResponse** — saved reply templates.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | PK |
+| title | text | Short name for quick search |
+| body | text | Template content |
+| body_html | text (nullable) | Rich formatted version |
+| created_by | uuid | FK -> User |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+**Message.search_vector** — full-text search on message body (tsvector column, same pattern as Conversation).
 
 ### channels module
 
@@ -244,6 +287,30 @@ Modules register via a central registry. Route files in `src/app` are thin adapt
 | target_id | uuid | FK -> User or Team (polymorphic, discriminated by target_type) |
 | active | boolean | |
 
+## Conversation State Transitions
+
+```
+                  new message from contact
+resolved ──────────────────────────────────→ open
+    ↑                                          │
+    │ agent resolves                           │ agent sets pending
+    │                                          ↓
+    └────────────── open ←──────────────── pending
+                      │                        ↑
+                      │ agent snoozes          │ snooze expires (BullMQ job)
+                      ↓                        │
+                   snoozed ────────────────────┘
+```
+
+Key transitions:
+- **New message on resolved conversation** → auto-reopens to `open`
+- **Snooze expiry** → BullMQ scheduled job checks `snoozed_until`, transitions to `open`
+- **Any status change** → creates a `ConversationEvent` for audit trail
+
+## Presence
+
+User presence (online/offline/away/busy) is **not stored in Postgres**. It is derived from WebSocket connection state and stored in Redis with TTL expiry. The identity module exposes a `getPresence(userId)` function that reads from Redis. This avoids write amplification on every connect/disconnect.
+
 ## Message Lifecycle
 
 ```
@@ -291,26 +358,31 @@ Each subsystem gets its own spec -> plan -> batch execution cycle:
 ### Phase 0: Foundation
 1. **Monorepo scaffold** — clean up chatwoot-next, align with this architecture (new schema, remove 1:1 Chatwoot ports)
 2. **db package** — Drizzle schema for all P0 tables, Neon connection, migrations
-3. **identity module** — Clerk integration, User model, auth middleware
+3. **identity module** — Clerk integration, User model, auth middleware, contact dedup
 
 ### Phase 1: Core Inbox
-4. **conversations module** — CRUD, status machine, participants, messages, events
-5. **channels: web chat** — widget adapter, WebSocket connection, realtime delivery
-6. **channels: email** — SMTP/IMAP adapter, email-to-conversation threading
-7. **routing module** — assignment rules, team routing, queue
-8. **shell** — inbox UI, conversation view, sidebar, navigation
+4. **conversations: CRUD + status** — conversation create/read/update, status machine, state transitions (including reopen on new message)
+5. **conversations: messages + search** — message creation, threading, canned responses, full-text search, labels
+6. **conversations: assignment + events** — manual assignment, participant management, conversation events audit log
+7. **channels: web chat** — widget adapter, WebSocket connection, realtime delivery
+8. **channels: email** — email adapter (SendGrid/Postmark for delivery, webhook for inbound), email-to-conversation threading (known-hard, needs spike)
+9. **shell** — inbox UI, conversation view, sidebar, navigation, inbox views (my/team/unassigned/filtered)
+
+### Phase 1.5: Routing + Polish
+10. **routing module** — assignment rules, round-robin, team routing, queue management
+11. **snooze scheduler** — BullMQ job to reopen snoozed conversations at `snoozed_until`
 
 ### Phase 2: Agent-Native
-9. **agents module** — copilot mode, Ron integration, handoff protocols
-10. **knowledge-base module** — article management, public portal, search
-11. **notifications module** — push, email digests, in-app
-12. **analytics module** — conversation metrics, SLA tracking, KPI dashboards
+12. **agents module** — copilot mode, Ron integration, handoff protocols
+13. **knowledge-base module** — article management, public portal, search
+14. **notifications module** — push, email digests, in-app
+15. **analytics module** — conversation metrics, SLA tracking, KPI dashboards
 
 ## Key Design Decisions
 
 1. **Single User table for humans and agents** — `type` discriminates. This is what makes agent-native work at the data level without bolting on a separate agent system.
 
-2. **ConversationParticipant.role = copilot** — agent-behind-the-scenes is a participant role, not a separate concept. Copilot messages are `visibility: internal` by default.
+2. **ConversationParticipant.role = copilot** — agent-behind-the-scenes is a participant role, not a separate concept. Copilot messages are `visibility: internal` by default. Single assignee enforced via `Conversation.assignee_id` FK, not participant role.
 
 3. **Neon over Supabase** — Buildpass uses Clerk (Supabase Auth redundant), and the platform needs full control over realtime for agent-aware events. Neon gives serverless Postgres with branching, without paying for bypassed services.
 
@@ -322,10 +394,17 @@ Each subsystem gets its own spec -> plan -> batch execution cycle:
 
 7. **Module architecture** — follows Buildpass module patterns (thin route adapters, module-owned data/actions/components, central registry). Each module is independently specable and buildable, enabling batch-mode agent execution.
 
+8. **No Inbox entity** — unlike Chatwoot, there's no separate Inbox table. The agent's "inbox" is a query: my assignments + team unassigned, filtered by channel/status/label. This is a UI concern handled by the shell module's views, not a data model concept. Keeps the core model simpler.
+
+9. **Presence in Redis, not Postgres** — ephemeral state (online/offline/away/busy) doesn't belong in the database. Derived from WebSocket connection state, stored in Redis with TTL.
+
+10. **Managed infrastructure** — Upstash for Redis, Neon for Postgres, Fly.io for compute. Minimises ops burden for a background project.
+
 ## Open Questions
 
 1. **Project naming** — "chatwoot-next" is a working title that implies Chatwoot fork. This is a new product. Needs a name.
 2. **Widget embedding** — how does the web chat widget embed into Buildpass products? Script tag (like Intercom/Chatwoot) or React component (since Buildpass is React)?
 3. **Ron integration interface** — what does the agents module API look like from Ron's perspective? Does Ron call into the platform, or does the platform call out to Ron?
-4. **Email provider** — SMTP/IMAP directly, or a service like SendGrid/Postmark for deliverability?
-5. **File storage** — attachments need to live somewhere. S3/R2/Supabase Storage?
+4. **File storage** — attachments need to live somewhere. S3/R2/Supabase Storage?
+5. **Contact merge strategy** — P0 uses email-based dedup. What's the broader merge story? (Manual merge UI, automatic fuzzy matching, etc.)
+6. **Email threading spike** — email threading via In-Reply-To/References is notoriously fragile. Needs a dedicated spike before the email channel implementation.
