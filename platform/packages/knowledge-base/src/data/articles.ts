@@ -30,12 +30,22 @@ function slugify(title: string): string {
 // CRUD operations
 // ---------------------------------------------------------------------------
 
+function uniqueSlug(_db: unknown, portalId: string, baseSlug: string): string {
+  const existing = listArticlesByPortal(_db, portalId);
+  const slugs = new Set(existing.map((a) => a.slug));
+  if (!slugs.has(baseSlug)) return baseSlug;
+  let i = 2;
+  while (slugs.has(`${baseSlug}-${i}`)) i++;
+  return `${baseSlug}-${i}`;
+}
+
 export function createArticle(
   _db: unknown,
   input: ArticleCreate,
 ): ArticleRecord {
   const now = new Date();
-  const slug = input.slug || slugify(input.title);
+  const baseSlug = input.slug || slugify(input.title);
+  const slug = uniqueSlug(_db, input.portalId, baseSlug);
 
   // Auto-assign position if not provided
   let position = input.position ?? 0;
@@ -75,9 +85,12 @@ export function getArticleById(
 export function getArticleBySlug(
   _db: unknown,
   slug: string,
+  portalId?: string,
 ): ArticleRecord | undefined {
   for (const article of store.values()) {
-    if (article.slug === slug) return article;
+    if (article.slug === slug && (!portalId || article.portalId === portalId)) {
+      return article;
+    }
   }
   return undefined;
 }
