@@ -1,0 +1,12 @@
+{
+  "name": "@buildpass/platform",
+  "private": true,
+  "scripts": {
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "lint": "turbo lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}
