@@ -47,6 +47,11 @@ describe('schema barrel export', () => {
       'teams',
       'teamMembers',
       'routingRules',
+      'notifications',
+      'notificationSettings',
+      'portals',
+      'categories',
+      'articles',
     ];
 
     for (const name of expectedTables) {
@@ -68,6 +73,8 @@ describe('schema barrel export', () => {
       'teamMemberRoleEnum',
       'routingActionEnum',
       'routingTargetTypeEnum',
+      'notificationTypeEnum',
+      'articleStatusEnum',
     ];
 
     for (const name of expectedEnums) {
@@ -90,6 +97,11 @@ describe('schema barrel export', () => {
       'channelConversationsRelations',
       'teamsRelations',
       'teamMembersRelations',
+      'notificationsRelations',
+      'notificationSettingsRelations',
+      'portalsRelations',
+      'categoriesRelations',
+      'articlesRelations',
     ];
 
     for (const name of expectedRelations) {
