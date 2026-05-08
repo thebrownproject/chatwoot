@@ -34,7 +34,7 @@ describe('auth middleware', () => {
   });
 
   it('authenticates with valid Bearer token (Clerk)', async () => {
-    const user = makeUser({ clerk_id: 'clerk_abc' });
+    const user = makeUser({ clerkId: 'clerk_abc' });
     const deps: AuthMiddlewareDeps = {
       userDb: mockUserDb({
         findByClerkId: vi.fn().mockResolvedValue(user),
@@ -99,7 +99,7 @@ describe('auth middleware', () => {
       id: 'u-agent',
       type: 'ai_agent',
       name: 'Ron',
-      api_key_hash: scryptHash,
+      apiKeyHash: scryptHash,
     });
     const deps: AuthMiddlewareDeps = {
       userDb: mockUserDb({
@@ -142,7 +142,7 @@ describe('auth middleware', () => {
       id: 'u-agent',
       type: 'ai_agent',
       name: 'Ron',
-      api_key_hash: 'not-a-scrypt-hash-no-colon',
+      apiKeyHash: 'not-a-scrypt-hash-no-colon',
     });
     const deps: AuthMiddlewareDeps = {
       userDb: mockUserDb({
@@ -160,7 +160,7 @@ describe('auth middleware', () => {
   });
 
   it('prefers Bearer token over X-API-Key when both present', async () => {
-    const user = makeUser({ clerk_id: 'clerk_abc' });
+    const user = makeUser({ clerkId: 'clerk_abc' });
     const deps: AuthMiddlewareDeps = {
       userDb: mockUserDb({
         findByClerkId: vi.fn().mockResolvedValue(user),

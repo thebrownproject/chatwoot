@@ -112,7 +112,7 @@ describe('getUserByEmail', () => {
 
 describe('getUserByClerkId', () => {
   it('returns user when found', async () => {
-    const user = makeUser({ clerk_id: 'clerk_123' });
+    const user = makeUser({ clerkId: 'clerk_123' });
     const db = mockUserDb({ findByClerkId: vi.fn().mockResolvedValue(user) });
     const result = await getUserByClerkId(db, 'clerk_123');
     expect(result).toEqual(user);

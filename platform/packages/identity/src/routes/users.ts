@@ -15,14 +15,14 @@ const userCreateSchema = z.object({
   type: z.enum(['human_agent', 'ai_agent', 'contact', 'system']),
   name: z.string().min(1),
   email: z.string().email().nullish(),
-  avatar_url: z.string().url().nullish(),
+  avatarUrl: z.string().url().nullish(),
   metadata: z.record(z.unknown()).nullish(),
 });
 
 const userUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().nullish(),
-  avatar_url: z.string().url().nullish(),
+  avatarUrl: z.string().url().nullish(),
   metadata: z.record(z.unknown()).nullish(),
 });
 
@@ -123,7 +123,7 @@ export function createUserRoutes(db: UserDb) {
     const hash = `${salt.toString('hex')}:${derived.toString('hex')}`;
 
     // Store the hash on the user record
-    await db.update(id, { api_key_hash: hash } as never);
+    await db.update(id, { apiKeyHash: hash } as never);
 
     return c.json({ data: { api_key: rawKey } }, 201);
   });

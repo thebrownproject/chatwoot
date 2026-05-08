@@ -8,12 +8,12 @@ export function makeUser(overrides: Partial<User> = {}): User {
     type: 'human_agent',
     name: 'Alice',
     email: 'alice@buildpass.com.au',
-    avatar_url: null,
+    avatarUrl: null,
     metadata: null,
-    clerk_id: null,
-    api_key_hash: null,
-    created_at: new Date('2026-01-01'),
-    updated_at: new Date('2026-01-01'),
+    clerkId: null,
+    apiKeyHash: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
     ...overrides,
   };
 }

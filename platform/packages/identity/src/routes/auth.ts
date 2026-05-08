@@ -75,11 +75,11 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
 
     const hash = deps.hashApiKey(parsed.data.api_key);
     const user = await deps.userDb.findByApiKeyHash(hash);
-    if (!user || !user.api_key_hash) {
+    if (!user || !user.apiKeyHash) {
       return c.json({ error: 'Invalid API key' }, 401);
     }
 
-    if (!verifyApiKeyScrypt(parsed.data.api_key, user.api_key_hash)) {
+    if (!verifyApiKeyScrypt(parsed.data.api_key, user.apiKeyHash)) {
       return c.json({ error: 'Invalid API key' }, 401);
     }
 

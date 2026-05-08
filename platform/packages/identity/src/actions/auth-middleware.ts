@@ -65,12 +65,12 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
     if (apiKeyHeader) {
       const hash = deps.hashApiKey(apiKeyHeader);
       const user = await deps.userDb.findByApiKeyHash(hash);
-      if (!user || !user.api_key_hash) {
+      if (!user || !user.apiKeyHash) {
         return c.json({ error: 'Invalid API key' }, 401);
       }
 
       // Timing-safe verification: re-derive scrypt hash and compare
-      if (!verifyApiKey(apiKeyHeader, user.api_key_hash)) {
+      if (!verifyApiKey(apiKeyHeader, user.apiKeyHash)) {
         return c.json({ error: 'Invalid API key' }, 401);
       }
 
