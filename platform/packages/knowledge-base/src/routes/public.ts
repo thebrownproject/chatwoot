@@ -7,7 +7,12 @@
 
 import { Hono } from 'hono';
 
+import type { ArticleRecord } from '../types.js';
 import { getPortalBySlug } from '../data/portals.js';
+
+function sanitizeArticle({ authorId, portalId, categoryId, ...rest }: ArticleRecord) {
+  return rest;
+}
 import { listCategoriesByPortal, getCategoryById } from '../data/categories.js';
 import {
   getArticleBySlug,
@@ -56,7 +61,7 @@ export function createPublicRoutes(db: unknown): Hono {
       categoryId: category.id,
     });
 
-    return c.json({ data: { ...category, articles } });
+    return c.json({ data: { ...category, articles: articles.map(sanitizeArticle) } });
   });
 
   // GET /help/:portalSlug/articles/:articleSlug — get a published article
@@ -77,7 +82,7 @@ export function createPublicRoutes(db: unknown): Hono {
     // Fire-and-forget view count increment
     incrementViewCount(db, article.id);
 
-    return c.json({ data: article });
+    return c.json({ data: sanitizeArticle(article) });
   });
 
   // GET /help/:portalSlug/search — search published articles
@@ -99,7 +104,7 @@ export function createPublicRoutes(db: unknown): Hono {
       status: 'published',
     });
 
-    return c.json({ data: articles });
+    return c.json({ data: articles.map(sanitizeArticle) });
   });
 
   return app;
