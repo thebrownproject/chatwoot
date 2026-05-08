@@ -71,7 +71,7 @@ export function createNotificationRoutes() {
     if (!success) {
       return c.json({ error: 'Notification not found' }, 404);
     }
-    return c.json({ data: { success: true } });
+    return c.json({ ok: true });
   });
 
   // POST /notifications/read-all — mark all as read
