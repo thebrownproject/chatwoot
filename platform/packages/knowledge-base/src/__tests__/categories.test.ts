@@ -69,6 +69,17 @@ describe('Category data access', () => {
     expect(subs[0]!.id).toBe(child.id);
   });
 
+  it('rejects circular parent references', () => {
+    const a = createCategory(db, { portalId: 'p1', name: 'A', slug: 'a' });
+    const b = createCategory(db, { portalId: 'p1', name: 'B', slug: 'b', parentCategoryId: a.id });
+    expect(() => updateCategory(db, a.id, { parentCategoryId: b.id })).toThrow('circular');
+  });
+
+  it('rejects self-referencing parent', () => {
+    const cat = createCategory(db, { portalId: 'p1', name: 'Self', slug: 'self' });
+    expect(() => updateCategory(db, cat.id, { parentCategoryId: cat.id })).toThrow('circular');
+  });
+
   it('lists categories by portal ordered by position', () => {
     createCategory(db, { portalId: 'p1', name: 'B', slug: 'b', position: 2 });
     createCategory(db, { portalId: 'p1', name: 'A', slug: 'a', position: 1 });
