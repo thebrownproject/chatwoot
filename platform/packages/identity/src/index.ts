@@ -37,7 +37,7 @@ export {
 export type { PermissionDb } from './data/permissions.js';
 
 // Actions
-export { deduplicateContact } from './actions/dedup.js';
+export { findOrCreateContact as deduplicateContact } from './data/users.js';
 export {
   createAuthMiddleware,
 } from './actions/auth-middleware.js';

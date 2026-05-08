@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { deduplicateContact } from '../actions/dedup.js';
+import { findOrCreateContact as deduplicateContact } from '../data/users.js';
 import { makeUser, mockUserDb } from './helpers.js';
 
 describe('deduplicateContact', () => {
