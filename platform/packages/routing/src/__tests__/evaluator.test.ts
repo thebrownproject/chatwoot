@@ -65,6 +65,15 @@ describe('matchConditions', () => {
     expect(matchConditions(conv, { keywords: ['Refund'] })).toBe(true);
   });
 
+  it('keyword matching uses word boundaries (no false positives)', () => {
+    const conv = makeConversation({ subject: 'Landing page demand analysis' });
+    expect(matchConditions(conv, { keywords: ['and'] })).toBe(false);
+    expect(matchConditions(conv, { keywords: ['land'] })).toBe(false);
+    expect(matchConditions(conv, { keywords: ['demand'] })).toBe(true);
+    expect(matchConditions(conv, { keywords: ['landing'] })).toBe(true);
+    expect(matchConditions(conv, { keywords: ['analysis'] })).toBe(true);
+  });
+
   it('requires ALL condition types to match (AND logic)', () => {
     const conv = makeConversation({
       channelOrigin: 'email',
