@@ -15,11 +15,12 @@ export type MessageVisibility = 'public' | 'internal';
 export type MessageType = 'text' | 'rich' | 'activity';
 
 export interface ModuleManifest {
-  id: string;
+  id?: string;
   name: string;
-  description: string;
-  navItems: NavItem[];
-  routes: RouteDefinition[];
+  description?: string;
+  navItems: (NavItem | ModuleNavItem)[];
+  routes: (RouteDefinition | string)[];
+  permissions?: string[];
 }
 
 export interface NavItem {
@@ -28,6 +29,12 @@ export interface NavItem {
   icon: string;
   path: string;
   badge?: number;
+}
+
+export interface ModuleNavItem {
+  label: string;
+  href: string;
+  icon: string;
 }
 
 export interface RouteDefinition {

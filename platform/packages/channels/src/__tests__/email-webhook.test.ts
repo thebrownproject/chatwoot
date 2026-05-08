@@ -14,10 +14,11 @@ function createTestApp(options: {
   threadingMatch?: ChannelConversationRecord | null;
   webhookSecret?: string;
 } = {}) {
-  const onNewConversation = vi.fn<[NewConversationData], Promise<{ conversationId: string }>>(
-    async () => ({ conversationId: 'new-conv-id' }),
+  const onNewConversation = vi.fn(
+    async (_data: NewConversationData): Promise<{ conversationId: string }> =>
+      ({ conversationId: 'new-conv-id' }),
   );
-  const onNewMessage = vi.fn<[NewMessageData], Promise<void>>(async () => {});
+  const onNewMessage = vi.fn(async (_data: NewMessageData): Promise<void> => {});
 
   const mockClient: EmailClient = {
     send: async () => ({ success: true, messageId: 'out-1' }),

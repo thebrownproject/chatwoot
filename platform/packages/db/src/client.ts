@@ -4,11 +4,16 @@ import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from './schema/index.js';
 
 export type Db = NeonHttpDatabase<typeof schema>;
+/** @deprecated Use Db */
+export type Database = Db;
 
 export const createDb = (url: string): Db => {
   const client = neon(url);
   return drizzle(client, { schema });
 };
+
+/** @deprecated Use createDb */
+export const createClient = createDb;
 
 /** Lazy singleton -- only connects when first accessed. */
 let _db: Db | undefined;
