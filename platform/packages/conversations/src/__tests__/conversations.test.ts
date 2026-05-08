@@ -174,7 +174,7 @@ describe('updateConversation', () => {
     expect(updated!.assigneeId).toBe('agent-3');
   });
 
-  it('merges metadata', async () => {
+  it('merges metadata (shallow — adds new keys)', async () => {
     const conv = await createConversation(db, {
       channelOrigin: 'email',
       metadata: { projectId: 'p1' },
@@ -183,6 +183,17 @@ describe('updateConversation', () => {
       metadata: { tag: 'billing' },
     });
     expect(updated!.metadata).toEqual({ projectId: 'p1', tag: 'billing' });
+  });
+
+  it('metadata merge: setting key to null adds null (does not remove)', async () => {
+    const conv = await createConversation(db, {
+      channelOrigin: 'email',
+      metadata: { projectId: 'p1', tag: 'billing' },
+    });
+    const updated = await updateConversation(db, conv.id, {
+      metadata: { tag: null },
+    });
+    expect(updated!.metadata).toEqual({ projectId: 'p1', tag: null });
   });
 
   it('returns undefined for unknown ID', async () => {
