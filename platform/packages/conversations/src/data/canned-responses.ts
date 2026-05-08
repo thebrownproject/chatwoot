@@ -12,6 +12,12 @@ export async function createCannedResponse(
   db: DbClient,
   input: CreateCannedResponseInput,
 ): Promise<CannedResponse> {
+  if (!input.title || input.title.trim().length === 0) {
+    throw new Error('Canned response title cannot be empty');
+  }
+  if (!input.body || input.body.trim().length === 0) {
+    throw new Error('Canned response body cannot be empty');
+  }
   const [row] = await db
     .insert(cannedResponses)
     .values({
