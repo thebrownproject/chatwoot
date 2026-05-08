@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
-import { createMessage, listMessages, searchMessages } from '../data/messages.js';
+import { createMessage, getMessageById, listMessages, searchMessages } from '../data/messages.js';
 import type { RouteEnv } from './shared.js';
 import { numParam } from './shared.js';
 
@@ -58,4 +58,14 @@ messageRoutes.get('/messages/search', async (c) => {
 
   const results = await searchMessages(db, parsed.data);
   return c.json({ data: results });
+});
+
+messageRoutes.get('/messages/:id', async (c) => {
+  const db = c.get('db');
+  const id = c.req.param('id');
+  const message = await getMessageById(db, id);
+  if (!message) {
+    return c.json({ error: 'Message not found' }, 404);
+  }
+  return c.json({ data: message });
 });
