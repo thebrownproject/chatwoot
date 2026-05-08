@@ -29,6 +29,7 @@ export interface ConversationCreate {
   subject?: string;
   priority?: ConversationPriority;
   assigneeId?: string;
+  actorId?: string;
   metadata?: Record<string, unknown>;
 }
 

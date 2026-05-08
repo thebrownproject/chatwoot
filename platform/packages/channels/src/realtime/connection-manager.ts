@@ -108,7 +108,7 @@ export class ConnectionManager {
   }
 
   broadcastAll(event: WsServerEvent, excludeWs?: WebSocket): void {
-    this.sendToAll(this.connections.keys(), event, excludeWs);
+    this.sendToAll([...this.connections.keys()], event, excludeWs);
   }
 
   private sendToAll(

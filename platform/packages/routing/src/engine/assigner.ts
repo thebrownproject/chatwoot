@@ -55,8 +55,9 @@ export async function roundRobin(
   const members = await db.getTeamMembers(teamId);
   if (members.length === 0) return null;
 
-  const currentIndex = roundRobinIndex.get(teamId) ?? -1;
-  const nextIndex = (currentIndex + 1) % members.length;
+  const rawIndex = roundRobinIndex.get(teamId) ?? -1;
+  const clampedIndex = rawIndex >= members.length ? -1 : rawIndex;
+  const nextIndex = (clampedIndex + 1) % members.length;
   roundRobinIndex.set(teamId, nextIndex);
 
   return members[nextIndex]!.userId;
