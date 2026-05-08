@@ -2,6 +2,10 @@
 
 This document defines the intent and process for the autonomous improvement loop that runs on this codebase. **Read this document at the start of every loop tick.**
 
+## Critical Mindset
+
+**Never assume the codebase is fully functional.** There are always more bugs, edge cases, and issues hiding. Every module has untested paths, every integration has gaps, every edge case has a variant that hasn't been considered. The codebase looks clean on the surface — that's when the subtle bugs are hardest to find. Dig deeper every pass. The point of this loop is to make the app more flawless with every tick, not to confirm it's already done.
+
 ## Intent
 
 The loop continuously improves the codebase by:
