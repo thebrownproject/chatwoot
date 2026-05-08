@@ -14,6 +14,11 @@ import {
   teams,
   teamMembers,
   routingRules,
+  notifications,
+  notificationSettings,
+  articles,
+  categories,
+  portals,
 } from './schema/index.js';
 
 /**
@@ -37,6 +42,11 @@ export function createTestDb(): Database {
 export async function cleanDb(db: Database): Promise<void> {
   // Truncate in reverse-dependency order to respect FK constraints.
   // Join tables and leaf tables first, then parent tables.
+  await db.delete(articles);
+  await db.delete(categories);
+  await db.delete(portals);
+  await db.delete(notifications);
+  await db.delete(notificationSettings);
   await db.delete(conversationLabels);
   await db.delete(channelConversations);
   await db.delete(conversationEvents);
