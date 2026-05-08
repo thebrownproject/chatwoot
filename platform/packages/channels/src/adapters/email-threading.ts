@@ -102,11 +102,11 @@ export async function buildThreadHeaders(
   };
 }
 
-/** Strip Re:/Fwd:/Fw: prefixes and normalise whitespace for subject matching */
+/** Strip all Re:/Fwd:/Fw: prefixes (including stacked) and normalise whitespace */
 export function normaliseSubject(subject: string): string {
-  return subject
-    .replace(/^(?:re|fwd?)\s*:\s*/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  let s = subject;
+  while (/^(?:re|fwd?)\s*:\s*/i.test(s)) {
+    s = s.replace(/^(?:re|fwd?)\s*:\s*/i, '');
+  }
+  return s.replace(/\s+/g, ' ').trim().toLowerCase();
 }

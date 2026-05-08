@@ -233,8 +233,10 @@ describe('normaliseSubject', () => {
     expect(normaliseSubject('Fw: Hello')).toBe('hello');
   });
 
-  it('strips multiple prefixes', () => {
-    expect(normaliseSubject('Re: Re: Fwd: Hello')).toBe('re: fwd: hello');
+  it('strips all stacked Re:/Fwd: prefixes', () => {
+    expect(normaliseSubject('Re: Re: Fwd: Hello')).toBe('hello');
+    expect(normaliseSubject('Fwd: Re: Fwd: Re: Test')).toBe('test');
+    expect(normaliseSubject('Re: Hello')).toBe('hello');
   });
 
   it('normalises whitespace', () => {
