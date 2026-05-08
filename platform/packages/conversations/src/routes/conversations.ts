@@ -52,7 +52,7 @@ const listFiltersSchema = z.object({
 // Route type — expects `db` in Hono env variables
 // ---------------------------------------------------------------------------
 
-type Env = { Variables: { db: DbClient } };
+type Env = { Variables: { db: DbClient; actorId: string } };
 
 /**
  * Conversation routes as a Hono app.

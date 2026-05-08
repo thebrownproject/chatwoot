@@ -58,5 +58,5 @@ labelRoutes.delete('/conversations/:id/labels/:labelId', async (c) => {
     conversationId: c.req.param('id'),
     labelId: c.req.param('labelId'),
   });
-  return c.json({ success: true });
+  return c.json({ ok: true });
 });

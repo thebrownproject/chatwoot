@@ -84,5 +84,5 @@ cannedResponseRoutes.delete('/canned-responses/:id', async (c) => {
   if (!deleted) {
     return c.json({ error: { message: 'Not found' } }, 404);
   }
-  return c.json({ success: true });
+  return c.json({ ok: true });
 });
