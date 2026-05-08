@@ -28,6 +28,7 @@ function eventToNotificationType(eventType: string): NotificationType | null {
     case 'new_message':
       return 'new_message';
     case 'assigned':
+    case 'unassigned':
       return 'assignment';
     case 'mention':
       return 'mention';
@@ -110,9 +111,11 @@ async function resolveRecipients(
       break;
     }
     case 'assignment': {
-      // Notify the new assignee
       const newAssignee = (event.payload as { assigneeId?: string }).assigneeId;
+      const previousAssignee = (event.payload as { previousAssigneeId?: string }).previousAssigneeId;
       if (newAssignee) recipients.add(newAssignee);
+      if (previousAssignee) recipients.add(previousAssignee);
+      recipients.delete(event.actorId);
       break;
     }
     case 'mention': {
