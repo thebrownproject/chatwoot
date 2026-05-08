@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Tag, Plus, X } from 'lucide-react';
 import type { Label } from '@buildpass/shell';
@@ -17,8 +18,8 @@ export function LabelPicker({
   onAdd,
   onRemove,
 }: LabelPickerProps) {
-  const currentIds = new Set(currentLabels.map((l) => l.id));
-  const unselected = availableLabels.filter((l) => !currentIds.has(l.id));
+  const currentIds = useMemo(() => new Set(currentLabels.map((l) => l.id)), [currentLabels]);
+  const unselected = useMemo(() => availableLabels.filter((l) => !currentIds.has(l.id)), [availableLabels, currentIds]);
 
   return (
     <div>
