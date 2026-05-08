@@ -10,7 +10,7 @@
     "./bootstrap": "./src/bootstrap.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit false",
+    "build": "tsc --noEmit",
     "dev": "tsc --watch",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
