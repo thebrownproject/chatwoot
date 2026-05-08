@@ -41,7 +41,7 @@ export interface UserCreate {
   avatar_url?: string | null;
   metadata?: UserMetadata | null;
   clerk_id?: string | null;
-  api_key_hash?: string | null;
+  // api_key_hash intentionally excluded — use POST /users/:id/api-key instead
 }
 
 /** Input for updating a user */

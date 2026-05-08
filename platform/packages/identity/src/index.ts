@@ -37,6 +37,7 @@ export type { PermissionDb } from './data/permissions.js';
 export { deduplicateContact } from './actions/dedup.js';
 export {
   createAuthMiddleware,
+  verifyApiKeyHash,
 } from './actions/auth-middleware.js';
 export type {
   AuthMiddlewareDeps,
@@ -44,7 +45,7 @@ export type {
 } from './actions/auth-middleware.js';
 
 // Routes
-export { createUserRoutes } from './routes/users.js';
+export { createUserRoutes, sanitizeUser } from './routes/users.js';
 export { createAuthRoutes } from './routes/auth.js';
 export type { AuthRouteDeps } from './routes/auth.js';
 

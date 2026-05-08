@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { requestId } from 'hono/request-id';
 import { errorHandler } from './middleware/error-handler.js';
@@ -8,6 +9,7 @@ import { routes } from './routes/index.js';
 const app = new Hono();
 
 app.use('*', requestId());
+app.use('*', bodyLimit({ maxSize: 1024 * 1024 })); // 1 MB
 app.use(
   '*',
   cors({

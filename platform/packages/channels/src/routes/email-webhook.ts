@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { EmailAdapter, EmailParseError } from '../adapters/email.js';
 import { matchToConversation, type ThreadingDb } from '../adapters/email-threading.js';
@@ -123,13 +124,13 @@ emailWebhookRoutes.post('/inbound', async (c) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Verify webhook signature.
+ * Verify webhook signature using timing-safe comparison.
  * SendGrid: X-Twilio-Email-Event-Webhook-Signature (ECDSA)
  * Postmark: (basic auth or token comparison)
  *
- * For MVP, we do a simple token comparison against a shared secret
- * passed as a query parameter or header. Production should use
- * provider-specific HMAC/ECDSA verification.
+ * For MVP, we do a timing-safe token comparison against a shared secret
+ * passed as a query parameter or header.
+ * TODO: Add provider-specific HMAC/ECDSA verification for production.
  */
 function verifyWebhookSignature(
   req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined },
@@ -137,5 +138,14 @@ function verifyWebhookSignature(
 ): boolean {
   // Check header first, then query param
   const token = req.header('x-webhook-token') ?? req.query('token');
-  return token === secret;
+  if (!token) return false;
+
+  // Use fixed-length buffers for timing-safe comparison
+  const tokenBuf = Buffer.from(token, 'utf-8');
+  const secretBuf = Buffer.from(secret, 'utf-8');
+
+  // Lengths must match for timingSafeEqual; reject mismatches
+  if (tokenBuf.length !== secretBuf.length) return false;
+
+  return timingSafeEqual(tokenBuf, secretBuf);
 }

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { UserDb } from '../data/users.js';
+import { sanitizeUser } from './users.js';
 
 export interface AuthRouteDeps {
   userDb: UserDb;
@@ -46,7 +47,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
       return c.json({ error: 'User not found for Clerk ID' }, 404);
     }
 
-    return c.json({ data: user });
+    return c.json({ data: sanitizeUser(user) });
   });
 
   // POST /auth/api-key — verify API key, return agent user
@@ -63,7 +64,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
       return c.json({ error: 'Invalid API key' }, 401);
     }
 
-    return c.json({ data: user });
+    return c.json({ data: sanitizeUser(user) });
   });
 
   return app;

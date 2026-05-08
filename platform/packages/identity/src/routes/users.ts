@@ -1,3 +1,4 @@
+import { randomBytes, scryptSync } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { UserDb } from '../data/users.js';
@@ -7,7 +8,15 @@ import {
   listUsers,
   updateUser,
 } from '../data/users.js';
-import type { UserType } from '../types.js';
+import type { User, UserType } from '../types.js';
+
+/**
+ * Strip sensitive fields before returning a user in API responses.
+ */
+export function sanitizeUser(user: User): Omit<User, 'api_key_hash' | 'clerk_id'> {
+  const { api_key_hash: _, clerk_id: __, ...safe } = user;
+  return safe;
+}
 
 const userCreateSchema = z.object({
   type: z.enum(['human_agent', 'ai_agent', 'contact', 'system']),
@@ -15,8 +24,6 @@ const userCreateSchema = z.object({
   email: z.string().email().nullish(),
   avatar_url: z.string().url().nullish(),
   metadata: z.record(z.unknown()).nullish(),
-  clerk_id: z.string().nullish(),
-  api_key_hash: z.string().nullish(),
 });
 
 const userUpdateSchema = z.object({
@@ -61,7 +68,7 @@ export function createUserRoutes(db: UserDb) {
     }
 
     const users = await listUsers(db, { type, limit, offset });
-    return c.json({ data: users });
+    return c.json({ data: users.map(sanitizeUser) });
   });
 
   // GET /users/:id — get user by ID
@@ -71,7 +78,7 @@ export function createUserRoutes(db: UserDb) {
     if (!user) {
       return c.json({ error: 'User not found' }, 404);
     }
-    return c.json({ data: user });
+    return c.json({ data: sanitizeUser(user) });
   });
 
   // POST /users — create user
@@ -85,7 +92,7 @@ export function createUserRoutes(db: UserDb) {
       );
     }
     const user = await createUser(db, parsed.data);
-    return c.json({ data: user }, 201);
+    return c.json({ data: sanitizeUser(user) }, 201);
   });
 
   // PATCH /users/:id — update user
@@ -103,7 +110,31 @@ export function createUserRoutes(db: UserDb) {
     if (!user) {
       return c.json({ error: 'User not found' }, 404);
     }
-    return c.json({ data: user });
+    return c.json({ data: sanitizeUser(user) });
+  });
+
+  // POST /users/:id/api-key — generate a new API key for a user
+  app.post('/:id/api-key', async (c) => {
+    const id = c.req.param('id');
+    const user = await getUserById(db, id);
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Generate a cryptographically random API key
+    const rawKey = `bp_${randomBytes(32).toString('hex')}`;
+
+    // Hash with scrypt (KDF) before storing
+    const salt = randomBytes(16);
+    const derived = scryptSync(rawKey, salt, 64);
+    const hash = `${salt.toString('hex')}:${derived.toString('hex')}`;
+
+    // Store the hash on the user record
+    // api_key_hash is intentionally excluded from UserUpdate — use direct DB write
+    await db.update(id, { api_key_hash: hash } as any);
+
+    // Return raw key once — it cannot be retrieved again
+    return c.json({ data: { api_key: rawKey } }, 201);
   });
 
   return app;

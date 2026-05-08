@@ -118,7 +118,8 @@ function parseSendGridPayload(payload: Record<string, unknown>): InboundEmail {
   const to = parseRecipientList(payload['to'] as string | undefined);
   const subject = (payload['subject'] as string) ?? '(no subject)';
   const bodyText = (payload['text'] as string) ?? '';
-  const bodyHtml = payload['html'] as string | undefined;
+  const rawHtml = payload['html'] as string | undefined;
+  const bodyHtml = rawHtml ? sanitizeHtml(rawHtml) : undefined;
 
   return {
     messageId: rawHeaders['message-id'] ?? generateFallbackMessageId(),
@@ -158,7 +159,8 @@ function parsePostmarkPayload(payload: Record<string, unknown>): InboundEmail {
 
   const subject = (payload['Subject'] as string) ?? '(no subject)';
   const bodyText = (payload['TextBody'] as string) ?? '';
-  const bodyHtml = payload['HtmlBody'] as string | undefined;
+  const rawHtml = payload['HtmlBody'] as string | undefined;
+  const bodyHtml = rawHtml ? sanitizeHtml(rawHtml) : undefined;
 
   const headers = parsePostmarkHeaders(payload['Headers'] as PostmarkHeader[] | undefined);
   const messageId = (payload['MessageID'] as string) ?? headers['message-id'] ?? generateFallbackMessageId();
@@ -176,6 +178,42 @@ function parsePostmarkPayload(payload: Record<string, unknown>): InboundEmail {
     attachments: parsePostmarkAttachments(payload),
     rawHeaders: headers,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Inbound HTML sanitization
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip dangerous tags and event handler attributes from inbound HTML.
+ * Prevents stored XSS when rendering email content in the UI.
+ */
+function sanitizeHtml(html: string): string {
+  // Remove dangerous tags and their content
+  let sanitized = html.replace(
+    /<\s*(script|iframe|object|embed|applet|form|base|link)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
+    '',
+  );
+  // Remove self-closing/void dangerous tags
+  sanitized = sanitized.replace(
+    /<\s*(script|iframe|object|embed|applet|form|base|link)\b[^>]*\/?>/gi,
+    '',
+  );
+  // Remove event handler attributes (on*)
+  sanitized = sanitized.replace(
+    /\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi,
+    '',
+  );
+  // Remove javascript: and data: URIs in href/src attributes
+  sanitized = sanitized.replace(
+    /(href|src)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*'|javascript:[^\s>]*)/gi,
+    '$1=""',
+  );
+  sanitized = sanitized.replace(
+    /(href|src)\s*=\s*(?:"data:[^"]*"|'data:[^']*'|data:[^\s>]*)/gi,
+    '$1=""',
+  );
+  return sanitized;
 }
 
 // ---------------------------------------------------------------------------
