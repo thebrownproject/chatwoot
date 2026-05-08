@@ -168,10 +168,10 @@ describe('updateConversation', () => {
     expect(updated!.priority).toBe('high');
   });
 
-  it('updates assigneeId', async () => {
+  it('does not update assigneeId via updateConversation (use assignConversation instead)', async () => {
     const conv = await createConversation(db, { channelOrigin: 'email' });
-    const updated = await updateConversation(db, conv.id, { assigneeId: 'agent-3' });
-    expect(updated!.assigneeId).toBe('agent-3');
+    const updated = await updateConversation(db, conv.id, { assigneeId: 'agent-3' } as any);
+    expect(updated!.assigneeId).toBeNull();
   });
 
   it('merges metadata (shallow — adds new keys)', async () => {
