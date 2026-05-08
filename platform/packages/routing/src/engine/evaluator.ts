@@ -5,6 +5,19 @@ import type {
   RuleMatch,
 } from '../types.js';
 
+const keywordRegexCache = new Map<string, RegExp>();
+
+function getKeywordRegex(keyword: string): RegExp {
+  const key = keyword.toLowerCase();
+  let regex = keywordRegexCache.get(key);
+  if (!regex) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    keywordRegexCache.set(key, regex);
+  }
+  return regex;
+}
+
 /**
  * Evaluate all active routing rules against a conversation.
  * Rules are expected to be sorted by priority (lower number = higher priority).
@@ -69,10 +82,9 @@ export function matchConditions(
     const searchText = [conversation.subject ?? '', conversation.body ?? '']
       .join(' ')
       .toLowerCase();
-    const hasMatchingKeyword = conditions.keywords.some((kw) => {
-      const escaped = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      return new RegExp(`\\b${escaped}\\b`, 'i').test(searchText);
-    });
+    const hasMatchingKeyword = conditions.keywords.some((kw) =>
+      getKeywordRegex(kw).test(searchText),
+    );
     if (!hasMatchingKeyword) return false;
   }
 
