@@ -269,8 +269,9 @@ describe('Article routes', () => {
     expect(json.data.status).toBe('published');
   });
 
-  it('POST /articles/:id/archive archives an article', async () => {
+  it('POST /articles/:id/archive archives a published article', async () => {
     const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    publishArticle(db, article.id);
     const res = await app.request(`/articles/${article.id}/archive`, { method: 'POST' });
     expect(res.status).toBe(200);
     const json = await res.json();
