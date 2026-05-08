@@ -202,7 +202,8 @@ export async function listConversations(
 }
 
 /**
- * Partially update a conversation (subject, priority, assigneeId, metadata).
+ * Partially update a conversation (subject, priority, metadata).
+ * Use assignConversation() to change assignment — it handles events and participants.
  */
 export async function updateConversation(
   _db: DbClient,
@@ -214,7 +215,6 @@ export async function updateConversation(
 
   if (data.subject !== undefined) conv.subject = data.subject;
   if (data.priority !== undefined) conv.priority = data.priority;
-  if (data.assigneeId !== undefined) conv.assigneeId = data.assigneeId;
   if (data.metadata !== undefined) conv.metadata = { ...conv.metadata, ...data.metadata };
   conv.updatedAt = now();
 
