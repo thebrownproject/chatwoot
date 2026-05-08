@@ -26,7 +26,7 @@ export class EventBus {
     if (idx !== -1) list.splice(idx, 1);
   }
 
-  /** Emit an event, running all handlers sequentially. */
+  /** Emit an event, running all handlers sequentially. One failing handler does not stop others. */
   async emit<K extends keyof EventMap>(
     event: K,
     data: EventMap[K],
@@ -34,7 +34,11 @@ export class EventBus {
     const list = this.handlers.get(event);
     if (!list) return;
     for (const handler of list) {
-      await handler(data);
+      try {
+        await handler(data);
+      } catch (err) {
+        console.error(`EventBus handler error for ${String(event)}:`, err);
+      }
     }
   }
 

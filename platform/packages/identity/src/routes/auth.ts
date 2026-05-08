@@ -1,3 +1,4 @@
+import { timingSafeEqual, scryptSync } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { UserDb } from '../data/users.js';
@@ -7,8 +8,22 @@ export interface AuthRouteDeps {
   userDb: UserDb;
   /** Verify a Clerk JWT. Returns the Clerk user ID (sub claim) or throws. */
   verifyClerkToken: (token: string) => Promise<string>;
-  /** Hash an API key for comparison against stored hashes. */
+  /** Hash an API key for lookup (fast hash for DB query). Full verification uses scrypt. */
   hashApiKey: (key: string) => string;
+}
+
+function verifyApiKeyScrypt(rawKey: string, storedHash: string): boolean {
+  const parts = storedHash.split(':');
+  if (parts.length !== 2) return false;
+  const salt = Buffer.from(parts[0], 'hex');
+  const storedDerived = Buffer.from(parts[1], 'hex');
+  try {
+    const derived = scryptSync(rawKey, salt, storedDerived.length);
+    if (derived.length !== storedDerived.length) return false;
+    return timingSafeEqual(derived, storedDerived);
+  } catch {
+    return false;
+  }
 }
 
 const verifySchema = z.object({
@@ -60,7 +75,11 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
 
     const hash = deps.hashApiKey(parsed.data.api_key);
     const user = await deps.userDb.findByApiKeyHash(hash);
-    if (!user) {
+    if (!user || !user.api_key_hash) {
+      return c.json({ error: 'Invalid API key' }, 401);
+    }
+
+    if (!verifyApiKeyScrypt(parsed.data.api_key, user.api_key_hash)) {
       return c.json({ error: 'Invalid API key' }, 401);
     }
 
