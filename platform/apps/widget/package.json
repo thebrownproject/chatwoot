@@ -1,0 +1,13 @@
+{
+  "name": "@buildpass/widget",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "echo 'widget dev placeholder'",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}
