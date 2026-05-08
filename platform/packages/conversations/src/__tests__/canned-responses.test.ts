@@ -189,7 +189,7 @@ describe('Canned Response Routes', () => {
     });
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.success).toBe(true);
+    expect(json.ok).toBe(true);
   });
 
   it('DELETE /canned-responses/:id returns 404 when not found', async () => {
