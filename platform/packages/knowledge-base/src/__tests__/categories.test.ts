@@ -123,6 +123,12 @@ describe('Category data access', () => {
     expect(deleteCategory(db, 'nonexistent')).toBe(false);
   });
 
+  it('rejects deleting category with children', () => {
+    const parent = createCategory(db, { portalId: 'p1', name: 'Parent', slug: 'parent' });
+    createCategory(db, { portalId: 'p1', name: 'Child', slug: 'child', parentCategoryId: parent.id });
+    expect(() => deleteCategory(db, parent.id)).toThrow('child categories');
+  });
+
   it('reorders categories', () => {
     const a = createCategory(db, { portalId: 'p1', name: 'A', slug: 'a' });
     const b = createCategory(db, { portalId: 'p1', name: 'B', slug: 'b' });
