@@ -157,6 +157,9 @@ export function publishArticle(
 ): ArticleRecord | undefined {
   const existing = store.get(id);
   if (!existing) return undefined;
+  if (existing.status === 'archived') {
+    throw new Error('Cannot publish an archived article. Unarchive to draft first.');
+  }
 
   const updated: ArticleRecord = {
     ...existing,
@@ -173,6 +176,9 @@ export function archiveArticle(
 ): ArticleRecord | undefined {
   const existing = store.get(id);
   if (!existing) return undefined;
+  if (existing.status === 'draft') {
+    throw new Error('Cannot archive a draft article. Publish it first.');
+  }
 
   const updated: ArticleRecord = {
     ...existing,
