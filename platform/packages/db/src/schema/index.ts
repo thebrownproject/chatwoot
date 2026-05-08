@@ -8,3 +8,5 @@ export * from './canned-responses.js';
 export * from './channels.js';
 export * from './teams.js';
 export * from './routing-rules.js';
+export * from './notifications.js';
+export * from './knowledge-base.js';
