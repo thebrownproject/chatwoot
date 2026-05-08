@@ -31,7 +31,7 @@ export function routingRulesRoutes(db: RoutingDb) {
     const body = await c.req.json();
     const parsed = routingRuleCreateSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
+      return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
     }
     const rule = await createRoutingRule(c.var.db, parsed.data);
     return c.json(rule, 201);
@@ -43,7 +43,7 @@ export function routingRulesRoutes(db: RoutingDb) {
     const body = await c.req.json();
     const parsed = routingRuleUpdateSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
+      return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
     }
     const rule = await updateRoutingRule(c.var.db, id, parsed.data);
     if (!rule) return c.json({ error: 'Not found' }, 404);
