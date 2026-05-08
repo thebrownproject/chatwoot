@@ -64,14 +64,15 @@ export function matchConditions(
     if (!hasMatchingLabel) return false;
   }
 
-  // Keyword match — at least one keyword must appear in subject or body (case-insensitive)
+  // Keyword match — at least one keyword must appear as a whole word in subject or body
   if (conditions.keywords !== undefined && conditions.keywords.length > 0) {
     const searchText = [conversation.subject ?? '', conversation.body ?? '']
       .join(' ')
       .toLowerCase();
-    const hasMatchingKeyword = conditions.keywords.some((kw) =>
-      searchText.includes(kw.toLowerCase()),
-    );
+    const hasMatchingKeyword = conditions.keywords.some((kw) => {
+      const escaped = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`\\b${escaped}\\b`, 'i').test(searchText);
+    });
     if (!hasMatchingKeyword) return false;
   }
 
