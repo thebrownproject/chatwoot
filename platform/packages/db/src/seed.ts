@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { createClient, type Database } from './client.js';
+import { createDb, type Db } from './client.js';
 import {
   users,
   permissions,
@@ -22,7 +22,7 @@ import {
  * Seed the database with sample data for local development.
  * Idempotent: checks for existing records before inserting.
  */
-export async function seed(db: Database) {
+export async function seed(db: Db) {
   // --- Users ---
   const existingAdmin = await db
     .select()
@@ -333,7 +333,7 @@ if (process.argv[1]?.match(/\/seed\.[tj]s$/)) {
     console.error('DATABASE_URL environment variable is required.');
     process.exit(1);
   }
-  const db = createClient(url);
+  const db = createDb(url);
   seed(db).catch((err) => {
     console.error('Seed failed:', err);
     process.exit(1);
