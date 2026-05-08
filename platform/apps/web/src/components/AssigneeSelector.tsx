@@ -30,15 +30,19 @@ export function AssigneeSelector({
                   {initials(currentAssignee.name)}
                 </div>
                 <span className="flex-1 text-left">{currentAssignee.name}</span>
-                <button
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Unassign"
                   onClick={(e) => {
                     e.stopPropagation();
                     onAssign(null);
                   }}
-                  className="rounded p-0.5 hover:bg-slate-200"
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onAssign(null); } }}
+                  className="rounded p-0.5 hover:bg-slate-200 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5 text-slate-400" />
-                </button>
+                </span>
               </>
             ) : (
               <>
