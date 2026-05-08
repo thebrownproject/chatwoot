@@ -240,7 +240,11 @@ export async function reopenConversation(
   id: string,
   actorId: string,
 ): Promise<TransitionResult> {
-  return applyTransition(db, id, actorId, 'open');
+  const result = await applyTransition(db, id, actorId, 'open');
+  if (result.ok) {
+    result.conversation.resolvedAt = null;
+  }
+  return result;
 }
 
 /**

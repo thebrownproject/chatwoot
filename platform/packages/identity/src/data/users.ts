@@ -85,13 +85,14 @@ export async function findOrCreateContact(
   email: string,
   name?: string,
 ): Promise<User> {
-  const existing = await db.findByEmail(email);
+  const normalizedEmail = email.toLowerCase().trim();
+  const existing = await db.findByEmail(normalizedEmail);
   if (existing && existing.type === 'contact') {
     return existing;
   }
   return db.insert({
     type: 'contact',
-    name: name ?? email,
-    email,
+    name: name ?? normalizedEmail,
+    email: normalizedEmail,
   });
 }
