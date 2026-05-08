@@ -98,6 +98,20 @@ describe('dismissSuggestion', () => {
     expect(dismissed!.status).toBe('dismissed');
   });
 
+  it('returns undefined when accepting a dismissed suggestion', async () => {
+    const suggestion = await createSuggestion(db, {
+      conversationId: 'conv-1',
+      agentId: 'agent-1',
+      suggestedReply: 'Draft',
+      confidence: 0.5,
+      reasoning: 'test',
+    });
+
+    await dismissSuggestion(db, suggestion.id);
+    const result = await acceptSuggestion(db, suggestion.id);
+    expect(result).toBeUndefined();
+  });
+
   it('returns undefined for already-dismissed suggestion', async () => {
     const suggestion = await createSuggestion(db, {
       conversationId: 'conv-1',
