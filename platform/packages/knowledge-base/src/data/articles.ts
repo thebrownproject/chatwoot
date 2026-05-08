@@ -20,10 +20,11 @@ const store = new Map<string, ArticleRecord>();
 // ---------------------------------------------------------------------------
 
 function slugify(title: string): string {
-  return title
+  const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+  return slug || `article-${Date.now()}`;
 }
 
 // ---------------------------------------------------------------------------
