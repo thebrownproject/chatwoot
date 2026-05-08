@@ -62,6 +62,9 @@ export async function searchMessages(
   db: DbClient,
   input: SearchMessagesInput,
 ): Promise<Message[]> {
+  if (!input.query || input.query.trim().length === 0) {
+    return [];
+  }
   const rows = await db
     .select()
     .from(messages)
