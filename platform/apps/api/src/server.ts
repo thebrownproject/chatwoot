@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { requestId } from 'hono/request-id';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestLogger } from './middleware/request-logger.js';
+import { rateLimiter } from './middleware/rate-limiter.js';
 import { routes } from './routes/index.js';
 
 const app = new Hono();
@@ -18,6 +19,7 @@ app.use(
       : 'http://localhost:3000',
   }),
 );
+app.use('*', rateLimiter);
 app.use('*', requestLogger);
 app.onError(errorHandler);
 app.route('/api/v1', routes);

@@ -13,6 +13,7 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "test:e2e": "npx vitest run --config tests/e2e/vitest.config.ts",
     "clean": "turbo clean"
   },
   "devDependencies": {
