@@ -1,0 +1,13 @@
+{
+  "name": "@buildpass/realtime",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "echo 'realtime dev placeholder'",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}
