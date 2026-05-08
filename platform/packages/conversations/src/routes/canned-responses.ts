@@ -43,7 +43,7 @@ cannedResponseRoutes.get('/canned-responses/:id', async (c) => {
   const db = c.get('db');
   const response = await getCannedResponseById(db, c.req.param('id'));
   if (!response) {
-    return c.json({ error: { message: 'Not found' } }, 404);
+    return c.json({ error: 'Not found' }, 404);
   }
   return c.json({ data: response });
 });
@@ -72,7 +72,7 @@ cannedResponseRoutes.patch('/canned-responses/:id', async (c) => {
 
   const response = await updateCannedResponse(db, c.req.param('id'), parsed.data);
   if (!response) {
-    return c.json({ error: { message: 'Not found' } }, 404);
+    return c.json({ error: 'Not found' }, 404);
   }
 
   return c.json({ data: response });
@@ -82,7 +82,7 @@ cannedResponseRoutes.delete('/canned-responses/:id', async (c) => {
   const db = c.get('db');
   const deleted = await deleteCannedResponse(db, c.req.param('id'));
   if (!deleted) {
-    return c.json({ error: { message: 'Not found' } }, 404);
+    return c.json({ error: 'Not found' }, 404);
   }
   return c.json({ ok: true });
 });

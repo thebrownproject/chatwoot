@@ -2,6 +2,10 @@
 
 From Opus 4.7 analysis of the current codebase. **~14 tasks, ~8 agent sessions** to go from in-memory to production.
 
+## CRITICAL: snake_case → camelCase type mismatch
+
+The identity module's `User` type uses `snake_case` fields (`avatar_url`, `clerk_id`, `api_key_hash`). Drizzle returns `camelCase` (`avatarUrl`, `clerkId`, `apiKeyHash`). When Drizzle adapters are wired, **every identity API response will break**. The `sanitizeUser` function destructures by snake_case names. Fix: update identity types to camelCase BEFORE wiring Drizzle adapters.
+
 ## Phase A: Foundation (do first, 1 session)
 - [ ] Add missing schema tables to `@buildpass/db`: notifications (notifications, notification_settings), knowledge-base (portals, categories, articles)
 - [ ] Run `drizzle-kit generate` to create initial migration SQL from the complete schema
