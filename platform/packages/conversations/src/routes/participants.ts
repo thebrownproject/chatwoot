@@ -12,7 +12,7 @@ participantsRoutes.get('/conversations/:id/participants', async (c) => {
   const db = c.get('db');
   const conversationId = c.req.param('id');
   const result = await participants.getParticipants(db, conversationId);
-  return c.json(result);
+  return c.json({ data: result });
 });
 
 /** POST /conversations/:id/participants — add a participant */
