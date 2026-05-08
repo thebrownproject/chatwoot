@@ -2,6 +2,17 @@
 
 From Opus 4.7 analysis of the current codebase. **~14 tasks, ~8 agent sessions** to go from in-memory to production.
 
+## CRITICAL: End-to-end message flow is NOT connected (2/8 steps work)
+
+Opus 4.7 traced a customer message through all modules. Result: **modules are islands**. The widget has its own in-memory store separate from conversations. No code triggers routing on conversation creation. The event bus has handlers but nobody emits events. The WebSocket server isn't wired to widget message creation.
+
+What needs wiring in Phase C:
+1. Widget → conversations module (use `createConversation` + `createMessage`, not local store)
+2. Conversation creation → routing evaluator (trigger `evaluate()` on new conversations)
+3. Message creation → `eventBus.emit('message.created')` (trigger hooks)
+4. Assignment → `eventBus.emit('conversation.assigned')` (trigger agent orchestrator)
+5. Message creation → WebSocket broadcast (notify connected agents)
+
 ## CRITICAL: E2E test suite partially tests reimplementations
 
 The E2E test suite (`tests/e2e/setup.ts`) imports REAL code from conversations, agents, KB, and routing modules. But it REIMPLEMENTS identity, notifications, and analytics with local in-memory stores. **If those 3 modules' code were deleted, all 92 E2E tests would still pass.** When wiring Drizzle, the E2E setup should be updated to import from the real modules instead of reimplementing them.
