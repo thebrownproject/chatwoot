@@ -38,38 +38,36 @@ export interface UserCreate {
   type: UserType;
   name: string;
   email?: string | null;
-  avatar_url?: string | null;
+  avatarUrl?: string | null;
   metadata?: UserMetadata | null;
-  clerk_id?: string | null;
-  api_key_hash?: string | null;
 }
 
 /** Input for updating a user */
 export interface UserUpdate {
   name?: string;
   email?: string | null;
-  avatar_url?: string | null;
+  avatarUrl?: string | null;
   metadata?: UserMetadata | null;
 }
 
-/** A persisted user record */
+/** A persisted user record (camelCase fields match Drizzle output) */
 export interface User {
   id: string;
   type: UserType;
   name: string;
   email: string | null;
-  avatar_url: string | null;
+  avatarUrl: string | null;
   metadata: UserMetadata | null;
-  clerk_id: string | null;
-  api_key_hash: string | null;
-  created_at: Date;
-  updated_at: Date;
+  clerkId: string | null;
+  apiKeyHash: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /** A persisted permission record */
 export interface Permission {
   id: string;
-  user_id: string;
+  userId: string;
   role: PermissionRole;
   capabilities: string[];
 }
@@ -82,11 +80,11 @@ export interface UserListFilters {
 }
 
 /** A user record with sensitive fields stripped for API responses */
-export type SafeUser = Omit<User, 'api_key_hash' | 'clerk_id'>;
+export type SafeUser = Omit<User, 'apiKeyHash' | 'clerkId'>;
 
 /** Strip sensitive fields from a user record before returning in API responses */
 export function sanitizeUser(user: User): SafeUser {
-  const { api_key_hash: _apiKeyHash, clerk_id: _clerkId, ...safe } = user;
+  const { apiKeyHash: _apiKeyHash, clerkId: _clerkId, ...safe } = user;
   return safe;
 }
 
