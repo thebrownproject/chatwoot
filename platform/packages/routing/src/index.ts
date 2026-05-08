@@ -55,8 +55,8 @@ export type {
   RoutableConversation,
   RuleMatch,
   RoutingDb,
-  SnoozeJobData,
 } from './types.js';
+export type { SnoozeJobData } from './jobs/snooze-scheduler.js';
 
 export {
   ruleConditionsSchema,
