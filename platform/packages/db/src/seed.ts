@@ -11,6 +11,11 @@ import {
   teamMembers,
   labels,
   cannedResponses,
+  notifications,
+  notificationSettings,
+  portals,
+  categories,
+  articles,
 } from './schema/index.js';
 
 /**
@@ -216,6 +221,107 @@ export async function seed(db: Database) {
     },
   ]);
   console.log('Seeded 2 canned responses.');
+
+  // --- Notifications ---
+  await db.insert(notifications).values([
+    {
+      userId: adminId,
+      type: 'new_message',
+      title: 'New message',
+      body: 'Alice Builder sent a message in "Cannot upload compliance documents"',
+      conversationId: conv1.id,
+      read: false,
+    },
+    {
+      userId: adminId,
+      type: 'assignment',
+      title: 'Conversation assigned',
+      body: 'You have been assigned "How to add a new project"',
+      conversationId: conv2.id,
+      read: true,
+    },
+  ]);
+
+  await db.insert(notificationSettings).values({
+    userId: adminId,
+    emailEnabled: true,
+    pushEnabled: false,
+    settings: {
+      new_message: true,
+      assignment: true,
+      mention: true,
+      status_change: true,
+      escalation: true,
+    },
+  });
+  console.log('Seeded notifications + settings.');
+
+  // --- Knowledge Base ---
+  const [portal] = await db
+    .insert(portals)
+    .values({
+      name: 'Buildpass Help Center',
+      slug: 'help',
+      config: { primaryColor: '#4F46E5' },
+    })
+    .returning();
+
+  const [gettingStartedCat] = await db
+    .insert(categories)
+    .values({
+      portalId: portal.id,
+      name: 'Getting Started',
+      slug: 'getting-started',
+      description: 'New to Buildpass? Start here.',
+      position: 0,
+    })
+    .returning();
+
+  const [troubleshootingCat] = await db
+    .insert(categories)
+    .values({
+      portalId: portal.id,
+      name: 'Troubleshooting',
+      slug: 'troubleshooting',
+      description: 'Common issues and solutions.',
+      position: 1,
+    })
+    .returning();
+
+  await db.insert(articles).values([
+    {
+      portalId: portal.id,
+      categoryId: gettingStartedCat.id,
+      title: 'How to create your first project',
+      slug: 'create-first-project',
+      content: 'Navigate to Dashboard > Projects > New Project. Fill in the required fields and click Create.',
+      contentHtml: '<p>Navigate to <strong>Dashboard > Projects > New Project</strong>. Fill in the required fields and click Create.</p>',
+      status: 'published',
+      authorId: adminId,
+      position: 0,
+    },
+    {
+      portalId: portal.id,
+      categoryId: troubleshootingCat.id,
+      title: 'File upload issues',
+      slug: 'file-upload-issues',
+      content: 'If uploads fail, check file size (max 25MB) and try Chrome or Firefox.',
+      status: 'published',
+      authorId: adminId,
+      position: 0,
+    },
+    {
+      portalId: portal.id,
+      categoryId: gettingStartedCat.id,
+      title: 'Inviting team members',
+      slug: 'inviting-team-members',
+      content: 'Go to Settings > Team > Invite. Enter email addresses and assign roles.',
+      status: 'draft',
+      authorId: adminId,
+      position: 1,
+    },
+  ]);
+  console.log('Seeded KB: 1 portal, 2 categories, 3 articles.');
 
   console.log('Seed complete.');
 }
