@@ -118,6 +118,10 @@ export function deleteCategory(
   _db: unknown,
   id: string,
 ): boolean {
+  const children = listSubCategories(_db, id);
+  if (children.length > 0) {
+    throw new Error('Cannot delete category with child categories. Move or delete children first.');
+  }
   return store.delete(id);
 }
 
