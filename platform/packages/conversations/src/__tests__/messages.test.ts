@@ -182,4 +182,18 @@ describe('Message Routes', () => {
     const res = await app.request('/messages/search?query=');
     expect(res.status).toBe(400);
   });
+
+  it('GET /messages/:id returns a message', async () => {
+    vi.mocked(messagesData.getMessageById).mockResolvedValue(sampleMessage);
+    const res = await app.request(`/messages/${sampleMessage.id}`);
+    expect(res.status).toBe(200);
+    const json = await res.json() as { data: { id: string } };
+    expect(json.data.id).toBe(sampleMessage.id);
+  });
+
+  it('GET /messages/:id returns 404 for unknown message', async () => {
+    vi.mocked(messagesData.getMessageById).mockResolvedValue(undefined as never);
+    const res = await app.request('/messages/nonexistent');
+    expect(res.status).toBe(404);
+  });
 });
