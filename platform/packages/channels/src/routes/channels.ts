@@ -42,7 +42,7 @@ export function channelRoutes(db: ChannelDb): Hono {
     const body = await c.req.json();
     const parsed = createChannelSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: parsed.error.issues }, 400);
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
 
     const channel = createChannel(db, {
@@ -65,7 +65,7 @@ export function channelRoutes(db: ChannelDb): Hono {
     const body = await c.req.json();
     const parsed = updateChannelSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: parsed.error.issues }, 400);
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
 
     const channel = updateChannel(db, c.req.param('id'), parsed.data);

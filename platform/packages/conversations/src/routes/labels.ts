@@ -23,7 +23,7 @@ labelRoutes.post('/labels', async (c) => {
 
   const parsed = CreateLabelInput.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: parsed.error.flatten() }, 400);
+    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
   const label = await createLabel(db, parsed.data);

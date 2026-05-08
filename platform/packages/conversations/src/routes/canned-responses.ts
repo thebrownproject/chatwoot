@@ -32,7 +32,7 @@ cannedResponseRoutes.get('/canned-responses/search', async (c) => {
   });
 
   if (!parsed.success) {
-    return c.json({ error: parsed.error.flatten() }, 400);
+    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
   const results = await searchCannedResponses(db, parsed.data);
@@ -54,7 +54,7 @@ cannedResponseRoutes.post('/canned-responses', async (c) => {
 
   const parsed = CreateCannedResponseInput.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: parsed.error.flatten() }, 400);
+    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
   const response = await createCannedResponse(db, parsed.data);
@@ -67,7 +67,7 @@ cannedResponseRoutes.patch('/canned-responses/:id', async (c) => {
 
   const parsed = UpdateCannedResponseInput.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: parsed.error.flatten() }, 400);
+    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
   const response = await updateCannedResponse(db, c.req.param('id'), parsed.data);
