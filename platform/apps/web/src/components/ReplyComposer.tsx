@@ -68,6 +68,7 @@ export function ReplyComposer({ onSend, disabled }: ReplyComposerProps) {
 
       <div className="flex items-end gap-2">
         <textarea
+          aria-label={isInternal ? 'Write an internal note' : 'Type your reply'}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -86,6 +87,7 @@ export function ReplyComposer({ onSend, disabled }: ReplyComposerProps) {
         />
         <button
           type="submit"
+          aria-label={isInternal ? 'Send internal note' : 'Send reply'}
           disabled={disabled || !body.trim()}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
             isInternal
