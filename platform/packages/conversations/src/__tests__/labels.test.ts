@@ -138,6 +138,6 @@ describe('Label Routes', () => {
     );
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.success).toBe(true);
+    expect(json.ok).toBe(true);
   });
 });
