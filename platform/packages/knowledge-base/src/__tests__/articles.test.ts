@@ -128,6 +128,18 @@ describe('Article lifecycle', () => {
     expect(archived?.status).toBe('archived');
   });
 
+  it('rejects publishing an archived article', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    publishArticle(db, article.id);
+    archiveArticle(db, article.id);
+    expect(() => publishArticle(db, article.id)).toThrow('archived');
+  });
+
+  it('rejects archiving a draft article', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    expect(() => archiveArticle(db, article.id)).toThrow('draft');
+  });
+
   it('returns undefined for nonexistent article transitions', () => {
     expect(publishArticle(db, 'nonexistent')).toBeUndefined();
     expect(archiveArticle(db, 'nonexistent')).toBeUndefined();
