@@ -20,7 +20,15 @@ let _db: Db | undefined;
 export const db: Db = new Proxy({} as Db, {
   get(_target, prop, receiver) {
     if (!_db) {
-      _db = createDb(process.env.DATABASE_URL!);
+      const url = process.env.DATABASE_URL;
+      if (!url) {
+        throw new Error(
+          'DATABASE_URL environment variable is not set. ' +
+          'Set it in .env or environment before making database calls. ' +
+          'See .env.example for required variables.'
+        );
+      }
+      _db = createDb(url);
     }
     return Reflect.get(_db, prop, receiver);
   },
