@@ -1,8 +1,8 @@
 # Handover Log
 
-## [2026-05-09] -- Overnight improvement loop: 32 PRs, 9 Opus 4.7 passes
+## [2026-05-09] -- Overnight improvement loop: 47 PRs, 17 Opus 4.7 passes
 
-**What got done (improvement loop ~23:00-04:00):**
+**What got done (improvement loop ~23:00-07:00):**
 - Merged integration PR (#21) combining all 15 module PRs
 - Applied security hardening: scrypt API keys, timingSafeEqual, HTML sanitization, CORS fail-closed, body limit, actorId from auth context
 - Fixed 10+ real bugs: keyword routing false positives, round-robin skip after membership change, wrong actorId in audit, EventBus error swallowing, empty search crash, iterator mutation in broadcast, snooze with past date
