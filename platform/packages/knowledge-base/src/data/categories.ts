@@ -73,6 +73,22 @@ export function listSubCategories(
     .sort((a, b) => a.position - b.position);
 }
 
+function wouldCreateCycle(categoryId: string, newParentId: string | null): boolean {
+  if (!newParentId) return false;
+  if (newParentId === categoryId) return true;
+  const visited = new Set<string>();
+  let current = newParentId;
+  while (current) {
+    if (visited.has(current)) return true;
+    if (current === categoryId) return true;
+    visited.add(current);
+    const parent = store.get(current);
+    current = parent?.parentCategoryId ?? '';
+    if (!current) break;
+  }
+  return false;
+}
+
 export function updateCategory(
   _db: unknown,
   id: string,
@@ -80,6 +96,10 @@ export function updateCategory(
 ): CategoryRecord | undefined {
   const existing = store.get(id);
   if (!existing) return undefined;
+
+  if (input.parentCategoryId !== undefined && wouldCreateCycle(id, input.parentCategoryId)) {
+    throw new Error('Cannot set parent: would create a circular reference');
+  }
 
   const updated: CategoryRecord = {
     ...existing,
