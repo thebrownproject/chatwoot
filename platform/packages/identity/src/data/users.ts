@@ -21,13 +21,16 @@ export interface UserDb {
 
 /** Create a user. For contacts, runs dedup check first (returns existing if found). */
 export async function createUser(db: UserDb, data: UserCreate): Promise<User> {
-  if (data.type === 'contact' && data.email) {
-    const existing = await db.findByEmail(data.email);
+  const normalizedData = data.email
+    ? { ...data, email: data.email.toLowerCase().trim() }
+    : data;
+  if (normalizedData.type === 'contact' && normalizedData.email) {
+    const existing = await db.findByEmail(normalizedData.email);
     if (existing && existing.type === 'contact') {
       return existing;
     }
   }
-  return db.insert(data);
+  return db.insert(normalizedData);
 }
 
 /** Get user by UUID */
