@@ -165,4 +165,10 @@ export interface RoutingDb {
   getSnoozedConversationsDue(): Promise<Array<{ id: string }>>;
   updateConversationStatus(id: string, status: ConversationStatus): Promise<void>;
   assignConversation(conversationId: string, assigneeId: string): Promise<void>;
+  createConversationEvent?(data: {
+    conversationId: string;
+    actorId: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+  }): Promise<void>;
 }
