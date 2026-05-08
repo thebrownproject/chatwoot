@@ -65,7 +65,7 @@ describe('schema barrel export', () => {
       'messageTypeEnum',
       'visibilityEnum',
       'channelTypeEnum',
-      'teamRoleEnum',
+      'teamMemberRoleEnum',
       'routingActionEnum',
       'routingTargetTypeEnum',
     ];

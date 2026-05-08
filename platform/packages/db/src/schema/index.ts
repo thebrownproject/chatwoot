@@ -2,7 +2,6 @@ export * from './column-helpers.js';
 export * from './users.js';
 export * from './permissions.js';
 export * from './conversations.js';
-export * from './conversation-events.js';
 export * from './messages.js';
 export * from './labels.js';
 export * from './canned-responses.js';

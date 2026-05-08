@@ -1,4 +1,4 @@
-import type { DbClient } from '@buildpass/db';
+import type { Db as DbClient } from '@buildpass/db';
 import type { Context } from 'hono';
 
 export type RouteEnv = {

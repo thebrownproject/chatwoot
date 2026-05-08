@@ -1,4 +1,4 @@
-import { createClient, type Database } from './client.js';
+import { createDb, type Db as Database } from './client.js';
 import {
   users,
   permissions,
@@ -27,7 +27,7 @@ export function createTestDb(): Database {
       'TEST_DATABASE_URL or DATABASE_URL environment variable is required for tests.',
     );
   }
-  return createClient(url);
+  return createDb(url);
 }
 
 /**
