@@ -13,7 +13,7 @@ import {
   conversationParticipantsRelations,
 } from '../schema/conversations.js';
 import { messagesRelations } from '../schema/messages.js';
-import { conversationEventsRelations } from '../schema/conversation-events.js';
+import { conversationEventsRelations } from '../schema/conversations.js';
 import {
   labelsRelations,
   conversationLabelsRelations,
@@ -403,16 +403,16 @@ describe('indexes', () => {
     const config = getTableConfig(schema.conversations);
     const indexNames = config.indexes.map((i) => i.config.name);
     expect(indexNames).toContain('idx_conversations_status');
-    expect(indexNames).toContain('idx_conversations_assignee');
-    expect(indexNames).toContain('idx_conversations_channel_origin');
-    expect(indexNames).toContain('idx_conversations_created_at');
+    expect(indexNames).toContain('idx_conversations_assignee_id');
+    expect(indexNames).toContain('idx_conversations_display_id');
+    expect(indexNames).toContain('idx_conversations_search');
   });
 
   it('messages table has indexes', () => {
     const config = getTableConfig(schema.messages);
     const indexNames = config.indexes.map((i) => i.config.name);
-    expect(indexNames).toContain('idx_messages_conversation');
-    expect(indexNames).toContain('idx_messages_sender');
-    expect(indexNames).toContain('idx_messages_created_at');
+    expect(indexNames).toContain('idx_messages_conversation_id');
+    expect(indexNames).toContain('idx_messages_sender_id');
+    expect(indexNames).toContain('idx_messages_search');
   });
 });

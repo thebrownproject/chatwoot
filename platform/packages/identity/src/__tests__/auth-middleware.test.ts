@@ -89,23 +89,29 @@ describe('auth middleware', () => {
   });
 
   it('authenticates with valid X-API-Key', async () => {
+    const { scryptSync, randomBytes } = await import('node:crypto');
+    const rawKey = 'raw-api-key';
+    const salt = randomBytes(16);
+    const derived = scryptSync(rawKey, salt, 64);
+    const scryptHash = salt.toString('hex') + ':' + derived.toString('hex');
+
     const agentUser = makeUser({
       id: 'u-agent',
       type: 'ai_agent',
       name: 'Ron',
-      api_key_hash: 'hashed-key',
+      api_key_hash: scryptHash,
     });
     const deps: AuthMiddlewareDeps = {
       userDb: mockUserDb({
         findByApiKeyHash: vi.fn().mockResolvedValue(agentUser),
       }),
       verifyClerkToken: vi.fn(),
-      hashApiKey: vi.fn().mockReturnValue('hashed-key'),
+      hashApiKey: vi.fn().mockReturnValue('lookup-hash'),
     };
     const app = createTestApp(deps);
 
     const res = await app.request('/protected', {
-      headers: { 'X-API-Key': 'raw-api-key' },
+      headers: { 'X-API-Key': rawKey },
     });
     expect(res.status).toBe(200);
 
