@@ -31,101 +31,111 @@ function parseDateRange(c: { req: { query: (key: string) => string | undefined }
 export function createAnalyticsRoutes() {
   const app = new Hono<Env>();
 
-  // GET /analytics/overview
   app.get('/analytics/overview', async (c) => {
-    const db = c.get('db');
-    const dateRange = parseDateRange(c);
-
-    const metrics = await getConversationMetrics(db, dateRange);
-    const sla = await getSlaStats(db, dateRange);
-
-    return c.json({
-      data: {
-        totalConversations: metrics.total,
-        avgFirstReplyMs: metrics.avgFirstReplyMs,
-        avgResolutionMs: metrics.avgResolutionMs,
-        slaComplianceRate: sla.complianceRate,
-      },
-    });
+    try {
+      const db = c.get('db');
+      const dateRange = parseDateRange(c);
+      const metrics = await getConversationMetrics(db, dateRange);
+      const sla = await getSlaStats(db, dateRange);
+      return c.json({
+        data: {
+          totalConversations: metrics.total,
+          avgFirstReplyMs: metrics.avgFirstReplyMs,
+          avgResolutionMs: metrics.avgResolutionMs,
+          slaComplianceRate: sla.complianceRate,
+        },
+      });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch overview metrics' }, 500);
+    }
   });
 
-  // GET /analytics/conversations
   app.get('/analytics/conversations', async (c) => {
-    const db = c.get('db');
-    const dateRange = parseDateRange(c);
-    const channel = c.req.query('channel');
-    const status = c.req.query('status');
-
-    const metrics = await getConversationMetrics(db, {
-      ...dateRange,
-      channel,
-      status,
-    });
-
-    return c.json({ data: metrics });
+    try {
+      const db = c.get('db');
+      const dateRange = parseDateRange(c);
+      const channel = c.req.query('channel');
+      const status = c.req.query('status');
+      const metrics = await getConversationMetrics(db, { ...dateRange, channel, status });
+      return c.json({ data: metrics });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch conversation metrics' }, 500);
+    }
   });
 
-  // GET /analytics/agents
   app.get('/analytics/agents', async (c) => {
-    const db = c.get('db');
-    const dateRange = parseDateRange(c);
-
-    // Get all agents with assignments in the period
-    const agentRows = await db.query<{ assignee_id: string }>(
-      `SELECT DISTINCT assignee_id FROM conversations WHERE assignee_id IS NOT NULL`,
-      [],
-    );
-
-    const agentMetrics = await Promise.all(
-      agentRows.map((row) => getAgentMetrics(db, row.assignee_id, dateRange)),
-    );
-
-    return c.json({ data: agentMetrics });
+    try {
+      const db = c.get('db');
+      const dateRange = parseDateRange(c);
+      const agentRows = await db.query<{ assignee_id: string }>(
+        `SELECT DISTINCT assignee_id FROM conversations WHERE assignee_id IS NOT NULL`,
+        [],
+      );
+      const agentMetrics = await Promise.all(
+        agentRows.map((row) => getAgentMetrics(db, row.assignee_id, dateRange)),
+      );
+      return c.json({ data: agentMetrics });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch agent metrics' }, 500);
+    }
   });
 
-  // GET /analytics/agents/:id
   app.get('/analytics/agents/:id', async (c) => {
-    const db = c.get('db');
-    const agentId = c.req.param('id');
-    const dateRange = parseDateRange(c);
-    const metrics = await getAgentMetrics(db, agentId, dateRange);
-    return c.json({ data: metrics });
+    try {
+      const db = c.get('db');
+      const agentId = c.req.param('id');
+      const dateRange = parseDateRange(c);
+      const metrics = await getAgentMetrics(db, agentId, dateRange);
+      return c.json({ data: metrics });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch agent metrics' }, 500);
+    }
   });
 
-  // GET /analytics/teams
   app.get('/analytics/teams', async (c) => {
-    const db = c.get('db');
-    const dateRange = parseDateRange(c);
-
-    const teamRows = await db.query<{ id: string }>(`SELECT id FROM teams`, []);
-    const teamMetrics = await Promise.all(
-      teamRows.map((row) => getTeamMetrics(db, row.id, dateRange)),
-    );
-
-    return c.json({ data: teamMetrics });
+    try {
+      const db = c.get('db');
+      const dateRange = parseDateRange(c);
+      const teamRows = await db.query<{ id: string }>(`SELECT id FROM teams`, []);
+      const teamMetrics = await Promise.all(
+        teamRows.map((row) => getTeamMetrics(db, row.id, dateRange)),
+      );
+      return c.json({ data: teamMetrics });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch team metrics' }, 500);
+    }
   });
 
-  // GET /analytics/channels
   app.get('/analytics/channels', async (c) => {
-    const db = c.get('db');
-    const dateRange = parseDateRange(c);
-    const metrics = await getChannelMetrics(db, dateRange);
-    return c.json({ data: metrics });
+    try {
+      const db = c.get('db');
+      const dateRange = parseDateRange(c);
+      const metrics = await getChannelMetrics(db, dateRange);
+      return c.json({ data: metrics });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch channel metrics' }, 500);
+    }
   });
 
-  // GET /analytics/sla
   app.get('/analytics/sla', async (c) => {
-    const db = c.get('db');
-    const dateRange = parseDateRange(c);
-    const stats = await getSlaStats(db, dateRange);
-    return c.json({ data: stats });
+    try {
+      const db = c.get('db');
+      const dateRange = parseDateRange(c);
+      const stats = await getSlaStats(db, dateRange);
+      return c.json({ data: stats });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch SLA stats' }, 500);
+    }
   });
 
-  // GET /analytics/sla/breaches
   app.get('/analytics/sla/breaches', async (c) => {
-    const db = c.get('db');
-    const breaches = await checkSlaBreaches(db);
-    return c.json({ data: breaches });
+    try {
+      const db = c.get('db');
+      const breaches = await checkSlaBreaches(db);
+      return c.json({ data: breaches });
+    } catch (err) {
+      return c.json({ error: 'Failed to fetch SLA breaches' }, 500);
+    }
   });
 
   return app;

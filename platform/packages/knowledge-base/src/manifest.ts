@@ -6,7 +6,7 @@
 
 import type { ModuleManifest } from '@buildpass/shell';
 
-export const knowledgeBaseManifest: ModuleManifest = {
+export const manifest: ModuleManifest = {
   name: 'knowledge-base',
   routes: ['/portals', '/categories', '/articles', '/help'],
   navItems: [
