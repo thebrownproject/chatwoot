@@ -17,7 +17,7 @@ messageRoutes.get('/conversations/:id/messages', async (c) => {
   });
 
   if (!parsed.success) {
-    return c.json({ error: parsed.error.flatten() }, 400);
+    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
   const results = await listMessages(db, parsed.data);
@@ -34,7 +34,7 @@ messageRoutes.post('/conversations/:id/messages', async (c) => {
   });
 
   if (!parsed.success) {
-    return c.json({ error: parsed.error.flatten() }, 400);
+    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
   const message = await createMessage(db, parsed.data);
@@ -51,7 +51,7 @@ messageRoutes.get('/messages/search', async (c) => {
   });
 
   if (!parsed.success) {
-    return c.json({ error: parsed.error.flatten() }, 400);
+    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
   const results = await searchMessages(db, parsed.data);

@@ -53,7 +53,7 @@ export function widgetRoutes(store: WidgetStore): Hono {
     const body = await c.req.json();
     const parsed = createWidgetConversationSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: parsed.error.issues }, 400);
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
 
     const id = crypto.randomUUID();
@@ -103,7 +103,7 @@ export function widgetRoutes(store: WidgetStore): Hono {
     const body = await c.req.json();
     const parsed = createWidgetMessageSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: parsed.error.issues }, 400);
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
 
     const msg: WidgetMessage = {
