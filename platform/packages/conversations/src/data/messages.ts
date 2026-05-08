@@ -7,6 +7,9 @@ export async function createMessage(
   db: DbClient,
   input: CreateMessageInput,
 ): Promise<Message> {
+  if (!input.body || input.body.trim().length === 0) {
+    throw new Error('Message body cannot be empty');
+  }
   const [row] = await db
     .insert(messages)
     .values({
