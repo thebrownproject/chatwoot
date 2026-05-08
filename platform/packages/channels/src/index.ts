@@ -56,7 +56,7 @@ export { widgetRoutes, createWidgetStore } from './routes/widget.js';
 export type { WidgetStore } from './routes/widget.js';
 
 // Manifest
-export { channelsManifest } from './manifest.js';
+export { manifest } from './manifest.js';
 
 // ── Email Channel Adapter (PR #10) ──
 

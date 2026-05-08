@@ -51,4 +51,4 @@ export type {
 } from './types.js';
 
 // Manifest
-export { knowledgeBaseManifest } from './manifest.js';
+export { manifest } from './manifest.js';

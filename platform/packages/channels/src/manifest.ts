@@ -4,7 +4,7 @@
  * Registers the channels module with the platform, declaring its
  * routes, capabilities, and any nav items.
  */
-export const channelsManifest = {
+export const manifest = {
   name: 'channels',
   description: 'Channel adapters for web chat, email, SMS, Slack, and in-app messaging',
   routes: [
