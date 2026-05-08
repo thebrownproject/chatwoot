@@ -28,9 +28,11 @@ messageRoutes.post('/conversations/:id/messages', async (c) => {
   const db = c.get('db');
   const body = await c.req.json();
 
+  const actorId = c.get('actorId') ?? body.senderId;
   const parsed = CreateMessageInput.safeParse({
     ...body,
     conversationId: c.req.param('id'),
+    senderId: actorId,
   });
 
   if (!parsed.success) {

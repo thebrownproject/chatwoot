@@ -4,6 +4,7 @@ import type { Context } from 'hono';
 export type RouteEnv = {
   Variables: {
     db: DbClient;
+    actorId: string;
   };
 };
 
