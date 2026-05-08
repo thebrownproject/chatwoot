@@ -17,7 +17,7 @@ What needs wiring in Phase C:
 
 The E2E test suite (`tests/e2e/setup.ts`) imports REAL code from conversations, agents, KB, and routing modules. But it REIMPLEMENTS identity, notifications, and analytics with local in-memory stores. **If those 3 modules' code were deleted, all 92 E2E tests would still pass.** When wiring Drizzle, the E2E setup should be updated to import from the real modules instead of reimplementing them.
 
-## CRITICAL: snake_case → camelCase type mismatch
+## ~~CRITICAL: snake_case → camelCase type mismatch~~ ✅ RESOLVED (PR #96)
 
 The identity module's `User` type uses `snake_case` fields (`avatar_url`, `clerk_id`, `api_key_hash`). Drizzle returns `camelCase` (`avatarUrl`, `clerkId`, `apiKeyHash`). When Drizzle adapters are wired, **every identity API response will break**. The `sanitizeUser` function destructures by snake_case names. Fix: update identity types to camelCase BEFORE wiring Drizzle adapters.
 
