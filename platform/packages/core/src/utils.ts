@@ -11,6 +11,21 @@ export const zPagination = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
+export function parseUuidParam(c: Context, param: string = 'id'): string | null {
+  const value = c.req.param(param);
+  return value && isValidUuid(value) ? value : null;
+}
+
+export const zSearchQuery = z.object({
+  q: z.string().min(1).max(500),
+});
+
 export function jsonError(
   c: Context,
   message: string,

@@ -1,5 +1,5 @@
 export { EventBus, eventBus } from './event-bus.js';
-export { generateId, zUuid, zPagination, jsonError } from './utils.js';
+export { generateId, zUuid, zPagination, zSearchQuery, jsonError, isValidUuid, parseUuidParam } from './utils.js';
 export { bootstrap } from './bootstrap.js';
 export { onMessageCreated } from './hooks/message-hooks.js';
 export { onConversationEvent } from './hooks/conversation-hooks.js';
