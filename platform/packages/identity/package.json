@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "hono": "^4.6.0",
-    "@clerk/backend": "^1.21.0",
     "@buildpass/db": "workspace:*",
     "zod": "^3.23.0"
   },
