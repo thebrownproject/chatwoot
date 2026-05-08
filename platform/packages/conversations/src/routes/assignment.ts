@@ -7,7 +7,7 @@ export type AssignmentEnv = { Variables: { db: Db; actorId: string } };
 
 export const assignmentRoutes = new Hono<AssignmentEnv>();
 
-function errorStatus(message: string): number {
+function errorStatus(message: string): 404 | 409 | 500 {
   if (message.includes('not found')) return 404;
   if (message.includes('already')) return 409;
   return 500;
