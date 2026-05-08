@@ -21,10 +21,11 @@ interface Env {
 function parseDateRange(c: { req: { query: (key: string) => string | undefined } }) {
   const from = c.req.query('from');
   const to = c.req.query('to');
-  return {
-    from: from ? new Date(from) : undefined,
-    to: to ? new Date(to) : undefined,
-  };
+  const fromDate = from ? new Date(from) : undefined;
+  const toDate = to ? new Date(to) : undefined;
+  if (fromDate && isNaN(fromDate.getTime())) return { from: undefined, to: undefined };
+  if (toDate && isNaN(toDate.getTime())) return { from: undefined, to: undefined };
+  return { from: fromDate, to: toDate };
 }
 
 export function createAnalyticsRoutes() {

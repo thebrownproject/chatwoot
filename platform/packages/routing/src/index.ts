@@ -20,7 +20,7 @@ export {
 
 // Routing engine
 export { evaluate, matchConditions } from './engine/evaluator.js';
-export { executeAction, roundRobin, resetRoundRobin } from './engine/assigner.js';
+export { executeAction, roundRobin } from './engine/assigner.js';
 
 // Snooze scheduler
 export {
