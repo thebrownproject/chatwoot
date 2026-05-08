@@ -28,6 +28,37 @@ describe('roundRobin', () => {
     expect(await roundRobin(db, team.id)).toBe('user-a');
   });
 
+  it('handles team membership changes during round-robin', async () => {
+    const db = createMockDb();
+    const team = await db.createTeam({ name: 'Dynamic' });
+    await db.addTeamMember(team.id, 'user-a', 'member');
+    await db.addTeamMember(team.id, 'user-b', 'member');
+    await db.addTeamMember(team.id, 'user-c', 'member');
+
+    expect(await roundRobin(db, team.id)).toBe('user-a');
+    expect(await roundRobin(db, team.id)).toBe('user-b');
+
+    // Remove user-b mid-cycle
+    await db.removeTeamMember(team.id, 'user-b');
+
+    // Should still cycle through remaining members without skipping
+    const next = await roundRobin(db, team.id);
+    expect(['user-a', 'user-c']).toContain(next);
+
+    // Add user-d
+    await db.addTeamMember(team.id, 'user-d', 'member');
+    const results = new Set<string>();
+    for (let i = 0; i < 6; i++) {
+      const r = await roundRobin(db, team.id);
+      if (r) results.add(r);
+    }
+    // All current members should eventually be assigned
+    expect(results).toContain('user-a');
+    expect(results).toContain('user-c');
+    expect(results).toContain('user-d');
+    expect(results).not.toContain('user-b');
+  });
+
   it('maintains separate counters per team', async () => {
     const db = createMockDb();
     const team1 = await db.createTeam({ name: 'Team 1' });
