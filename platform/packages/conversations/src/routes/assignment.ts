@@ -7,7 +7,12 @@ export type AssignmentEnv = { Variables: { db: Db; actorId: string } };
 
 export const assignmentRoutes = new Hono<AssignmentEnv>();
 
-/** POST /conversations/:id/assign — assign conversation to a user */
+function errorStatus(message: string): number {
+  if (message.includes('not found')) return 404;
+  if (message.includes('already')) return 409;
+  return 500;
+}
+
 assignmentRoutes.post('/conversations/:id/assign', async (c) => {
   const db = c.get('db');
   const actorId = c.get('actorId');
@@ -16,7 +21,7 @@ assignmentRoutes.post('/conversations/:id/assign', async (c) => {
   const parsed = assignConversationSchema.safeParse(body);
 
   if (!parsed.success) {
-    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
+    return c.json({ error: 'Invalid request body', details: parsed.error.flatten() }, 400);
   }
 
   try {
@@ -24,11 +29,10 @@ assignmentRoutes.post('/conversations/:id/assign', async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return c.json({ error: message }, 500);
+    return c.json({ error: message }, errorStatus(message));
   }
 });
 
-/** POST /conversations/:id/unassign — unassign conversation */
 assignmentRoutes.post('/conversations/:id/unassign', async (c) => {
   const db = c.get('db');
   const actorId = c.get('actorId');
@@ -39,11 +43,10 @@ assignmentRoutes.post('/conversations/:id/unassign', async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return c.json({ error: message }, 500);
+    return c.json({ error: message }, errorStatus(message));
   }
 });
 
-/** GET /conversations/assigned/:userId — list assigned conversations */
 assignmentRoutes.get('/conversations/assigned/:userId', async (c) => {
   const db = c.get('db');
   const userId = c.req.param('userId');
@@ -55,7 +58,6 @@ assignmentRoutes.get('/conversations/assigned/:userId', async (c) => {
   return c.json(conversations);
 });
 
-/** GET /conversations/unassigned — list unassigned conversations */
 assignmentRoutes.get('/conversations/unassigned', async (c) => {
   const db = c.get('db');
   const query = c.req.query();
