@@ -127,7 +127,8 @@ conversationRoutes.post('/', async (c) => {
     return c.json({ error: 'Invalid request body', details: parsed.error.flatten() }, 400);
   }
 
-  const conversation = await createConversation(db, parsed.data);
+  const actorId = c.get('actorId') ?? 'system';
+  const conversation = await createConversation(db, { ...parsed.data, actorId });
   return c.json(conversation, 201);
 });
 
