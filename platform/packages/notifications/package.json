@@ -1,5 +1,5 @@
 {
-  "name": "@platform/notifications",
+  "name": "@buildpass/notifications",
   "version": "0.0.1",
   "private": true,
   "type": "module",
