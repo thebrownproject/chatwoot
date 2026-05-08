@@ -17,7 +17,6 @@ const userCreateSchema = z.object({
   email: z.string().email().nullish(),
   avatar_url: z.string().url().nullish(),
   metadata: z.record(z.unknown()).nullish(),
-  clerk_id: z.string().nullish(),
 });
 
 const userUpdateSchema = z.object({

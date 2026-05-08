@@ -161,7 +161,7 @@ conversationRoutes.post('/:id/resolve', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
   // actorId would normally come from auth middleware
-  const actorId = c.req.header('x-actor-id') ?? 'system';
+  const actorId = c.get('actorId') ?? 'system';
 
   const result = await resolveConversation(db, id, actorId);
   if (!result.ok) {
@@ -179,7 +179,7 @@ conversationRoutes.post('/:id/resolve', async (c) => {
 conversationRoutes.post('/:id/reopen', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
-  const actorId = c.req.header('x-actor-id') ?? 'system';
+  const actorId = c.get('actorId') ?? 'system';
 
   const result = await reopenConversation(db, id, actorId);
   if (!result.ok) {
@@ -197,7 +197,7 @@ conversationRoutes.post('/:id/reopen', async (c) => {
 conversationRoutes.post('/:id/snooze', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
-  const actorId = c.req.header('x-actor-id') ?? 'system';
+  const actorId = c.get('actorId') ?? 'system';
 
   const body = await c.req.json();
   const parsed = snoozeSchema.safeParse(body);
