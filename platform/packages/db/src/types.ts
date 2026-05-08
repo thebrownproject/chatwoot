@@ -13,6 +13,11 @@ import type { cannedResponses } from './schema/canned-responses.js';
 import type { channels, channelConversations } from './schema/channels.js';
 import type { teams, teamMembers } from './schema/teams.js';
 import type { routingRules } from './schema/routing-rules.js';
+import type {
+  notifications,
+  notificationSettings,
+} from './schema/notifications.js';
+import type { portals, categories, articles } from './schema/knowledge-base.js';
 
 // Users
 export type User = InferSelectModel<typeof users>;
@@ -70,3 +75,20 @@ export type NewTeamMember = InferInsertModel<typeof teamMembers>;
 // Routing Rules
 export type RoutingRule = InferSelectModel<typeof routingRules>;
 export type NewRoutingRule = InferInsertModel<typeof routingRules>;
+
+// Notifications
+export type Notification = InferSelectModel<typeof notifications>;
+export type NewNotification = InferInsertModel<typeof notifications>;
+
+export type NotificationSetting = InferSelectModel<typeof notificationSettings>;
+export type NewNotificationSetting = InferInsertModel<typeof notificationSettings>;
+
+// Knowledge Base
+export type Portal = InferSelectModel<typeof portals>;
+export type NewPortal = InferInsertModel<typeof portals>;
+
+export type Category = InferSelectModel<typeof categories>;
+export type NewCategory = InferInsertModel<typeof categories>;
+
+export type Article = InferSelectModel<typeof articles>;
+export type NewArticle = InferInsertModel<typeof articles>;
