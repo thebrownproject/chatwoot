@@ -26,12 +26,18 @@ export interface SnoozeJobData {
  */
 export async function checkSnoozedConversations(db: RoutingDb): Promise<number> {
   const due = await db.getSnoozedConversationsDue();
+  let reopened = 0;
 
   for (const conversation of due) {
-    await db.updateConversationStatus(conversation.id, 'open');
+    try {
+      await db.updateConversationStatus(conversation.id, 'open');
+      reopened++;
+    } catch (err) {
+      console.error(`Failed to unsnooze conversation ${conversation.id}:`, err);
+    }
   }
 
-  return due.length;
+  return reopened;
 }
 
 /**
