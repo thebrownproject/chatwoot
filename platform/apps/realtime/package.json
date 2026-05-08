@@ -7,7 +7,6 @@
     "build": "tsc",
     "dev": "echo 'realtime dev placeholder'",
     "lint": "eslint src/",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit"
   }
 }
