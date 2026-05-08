@@ -174,7 +174,11 @@ export async function dispatch(
     conversationId: event.conversationId,
   }));
 
-  await Promise.all(
+  const results = await Promise.allSettled(
     notifications.map((data) => createNotification(db, data)),
   );
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    console.error(`${failures.length}/${results.length} notifications failed to create`);
+  }
 }
