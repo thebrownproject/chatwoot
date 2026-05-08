@@ -1,0 +1,3 @@
+# @chatwoot-next/workers
+
+BullMQ background workers replacing the Rails Sidekiq worker fleet. The 11 BullMQ queues mirror Sidekiq queue names from `config/sidekiq.yml` (`critical`, `high`, `medium`, `default`, `mailers`, `low`, `scheduled_jobs`, `deferred`, `purgable`, `housekeeping`, `integrations`) so producers can be migrated incrementally; cron entries from `config/schedule.yml` are registered at boot as BullMQ repeatable jobs (not `@vercel/cron`). During cutover this app coexists with Sidekiq — new TS code enqueues through `enqueueJob` in `@chatwoot-next/core`, while legacy Rails producers keep writing to the same Redis queues. React Email templates ported from `app/views/<mailer>/` live under `src/mailer/templates/`.

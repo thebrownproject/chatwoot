@@ -1,0 +1,36 @@
+{
+  "name": "@chatwoot-next/auth",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./devise/bcrypt": "./src/devise/bcrypt.ts",
+    "./devise/token-auth": "./src/devise/token-auth.ts",
+    "./devise/encryption": "./src/devise/encryption.ts",
+    "./totp": "./src/totp.ts",
+    "./saml/provider": "./src/saml/provider.ts",
+    "./auth-config": "./src/auth-config.ts",
+    "./middleware/with-account": "./src/middleware/with-account.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit false",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "next-auth": "5.0.0-beta.22",
+    "bcryptjs": "^2.4.3",
+    "otplib": "^12.0.1",
+    "@node-saml/node-saml": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

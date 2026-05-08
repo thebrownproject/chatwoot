@@ -1,0 +1,31 @@
+{
+  "name": "@chatwoot-next/realtime",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.0",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "ioredis": "^5.4.0",
+    "pino": "^9.5.0",
+    "drizzle-orm": "^0.36.0",
+    "@chatwoot-next/db": "workspace:*",
+    "@chatwoot-next/auth": "workspace:*",
+    "@chatwoot-next/realtime-client": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "@types/node": "*",
+    "tsx": "^4.19.0",
+    "vitest": "*"
+  }
+}

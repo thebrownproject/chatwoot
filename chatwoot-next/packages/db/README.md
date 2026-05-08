@@ -1,0 +1,1 @@
+Drizzle introspects the existing Rails-managed Postgres schema (87 tables incl. pgvector + JSONB-heavy). Migrations layered on top must use the prefix `0001_next_*` so they don't collide with Rails' `db/migrate/`. Tables are introspected via `pnpm db:introspect`. Reference: db/schema.rb.

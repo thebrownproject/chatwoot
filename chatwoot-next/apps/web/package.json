@@ -1,0 +1,43 @@
+{
+  "name": "@chatwoot-next/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf .next .turbo"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@chatwoot-next/db": "workspace:*",
+    "@chatwoot-next/auth": "workspace:*",
+    "@chatwoot-next/core": "workspace:*",
+    "@chatwoot-next/policies": "workspace:*",
+    "@chatwoot-next/i18n": "workspace:*",
+    "@chatwoot-next/ui": "workspace:*",
+    "@chatwoot-next/editor": "workspace:*",
+    "@chatwoot-next/realtime-client": "workspace:*",
+    "@chatwoot-next/integrations": "workspace:*",
+    "@chatwoot-next/channels": "workspace:*",
+    "next-auth": "5.0.0-beta.22",
+    "next-intl": "^3.21.0",
+    "tailwindcss": "^3.4.0",
+    "zod": "^3.23.0",
+    "drizzle-orm": "^0.36.0"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "@types/node": "*",
+    "eslint-config-next": "^15.0.0",
+    "autoprefixer": "*",
+    "postcss": "*",
+    "vitest": "^2.1.0"
+  }
+}

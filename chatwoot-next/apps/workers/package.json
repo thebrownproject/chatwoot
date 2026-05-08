@@ -1,0 +1,34 @@
+{
+  "name": "@chatwoot-next/workers",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@chatwoot-next/channels": "workspace:*",
+    "@chatwoot-next/core": "workspace:*",
+    "@chatwoot-next/db": "workspace:*",
+    "@chatwoot-next/integrations": "workspace:*",
+    "bullmq": "^5.21.0",
+    "imapflow": "^1.0.0",
+    "ioredis": "^5.4.0",
+    "nodemailer": "^6.9.0",
+    "pino": "^9.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "@types/nodemailer": "*",
+    "ioredis-mock": "^8.9.0",
+    "tsx": "^4.19.0",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}

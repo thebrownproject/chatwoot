@@ -1,0 +1,3 @@
+# @chatwoot-next/web
+
+Agent-facing dashboard for Chatwoot Next, built on Next.js 15 (App Router) + TypeScript. Multi-tenancy is expressed in the URL via the `[accountId]` segment under `(dashboard)/`; `src/middleware.ts` validates the Auth.js session, enforces account membership, and forwards `x-account-id` so route handlers can use the scoped DB client from `@chatwoot-next/db`. API routes under `src/app/api/` mirror the Rails `config/routes.rb` namespacing 1:1 (e.g. `/api/v1/accounts/[accountId]/conversations`) so existing clients can migrate without contract changes; webhook and OAuth callback paths likewise mirror their Rails counterparts.

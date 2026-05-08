@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chatwoot Widget Dev Harness</title>
+  </head>
+  <body>
+    <div id="cw-widget-host"></div>
+    <script type="module">
+      import { mount } from '/src/index.tsx';
+      mount(document.getElementById('cw-widget-host'), {
+        websiteToken: 'dev-token',
+        baseUrl: 'http://localhost:3000',
+      });
+    </script>
+  </body>
+</html>
