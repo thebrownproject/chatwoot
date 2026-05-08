@@ -19,6 +19,7 @@ export function createMockDb(): RoutingDb & {
   _teams: Map<string, Team>;
   _teamMembers: Map<string, TeamMember[]>;
   _conversations: Map<string, { id: string; status: ConversationStatus; assigneeId: string | null }>;
+  _events: Array<{ conversationId: string; actorId: string; eventType: string; payload: Record<string, unknown> }>;
   _addConversation(id: string, status: ConversationStatus, snoozedUntil?: Date): void;
 } {
   const rules = new Map<string, RoutingRule>();
@@ -162,6 +163,17 @@ export function createMockDb(): RoutingDb & {
       if (conv) {
         conv.assigneeId = assigneeId;
       }
+    },
+
+    _events: [] as Array<{ conversationId: string; actorId: string; eventType: string; payload: Record<string, unknown> }>,
+
+    async createConversationEvent(data: {
+      conversationId: string;
+      actorId: string;
+      eventType: string;
+      payload: Record<string, unknown>;
+    }): Promise<void> {
+      this._events.push(data);
     },
   };
 }
