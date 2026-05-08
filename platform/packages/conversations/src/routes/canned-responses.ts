@@ -52,7 +52,8 @@ cannedResponseRoutes.post('/canned-responses', async (c) => {
   const db = c.get('db');
   const body = await c.req.json();
 
-  const parsed = CreateCannedResponseInput.safeParse(body);
+  const actorId = c.get('actorId') ?? body.createdBy;
+  const parsed = CreateCannedResponseInput.safeParse({ ...body, createdBy: actorId });
   if (!parsed.success) {
     return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
