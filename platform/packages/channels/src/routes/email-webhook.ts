@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { EmailAdapter, EmailParseError } from '../adapters/email.js';
 import { matchToConversation, type ThreadingDb } from '../adapters/email-threading.js';
@@ -123,7 +124,7 @@ emailWebhookRoutes.post('/inbound', async (c) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Verify webhook signature.
+ * Verify webhook signature using timing-safe comparison.
  * SendGrid: X-Twilio-Email-Event-Webhook-Signature (ECDSA)
  * Postmark: (basic auth or token comparison)
  *
@@ -137,5 +138,12 @@ function verifyWebhookSignature(
 ): boolean {
   // Check header first, then query param
   const token = req.header('x-webhook-token') ?? req.query('token');
-  return token === secret;
+  if (!token) return false;
+
+  // Use timing-safe comparison to prevent timing attacks
+  const tokenBuf = Buffer.from(token);
+  const secretBuf = Buffer.from(secret);
+
+  if (tokenBuf.length !== secretBuf.length) return false;
+  return timingSafeEqual(tokenBuf, secretBuf);
 }

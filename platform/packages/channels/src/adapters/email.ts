@@ -127,7 +127,7 @@ function parseSendGridPayload(payload: Record<string, unknown>): InboundEmail {
     to,
     subject,
     bodyText,
-    bodyHtml,
+    bodyHtml: bodyHtml ? sanitizeInboundHtml(bodyHtml) : undefined,
     inReplyTo: rawHeaders['in-reply-to'] ?? undefined,
     references: rawHeaders['references']?.split(/\s+/).filter(Boolean),
     attachments: parseSendGridAttachments(payload),
@@ -170,7 +170,7 @@ function parsePostmarkPayload(payload: Record<string, unknown>): InboundEmail {
     to,
     subject,
     bodyText,
-    bodyHtml,
+    bodyHtml: bodyHtml ? sanitizeInboundHtml(bodyHtml) : undefined,
     inReplyTo: headers['in-reply-to'] ?? undefined,
     references: headers['references']?.split(/\s+/).filter(Boolean),
     attachments: parsePostmarkAttachments(payload),
@@ -251,6 +251,29 @@ function parseRecipientList(to: string | undefined): string[] {
 
 function generateFallbackMessageId(): string {
   return `${crypto.randomUUID()}@inbound.local`;
+}
+
+/**
+ * Strip dangerous HTML tags and attributes from inbound email HTML.
+ * Removes <script>, <iframe>, <object>, <embed>, <form>, <base>,
+ * and any on* event handler attributes.
+ */
+function sanitizeInboundHtml(html: string): string {
+  // Remove dangerous tags and their content
+  let sanitized = html.replace(
+    /<\s*(script|iframe|object|embed|form|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
+    '',
+  );
+  // Remove self-closing / unclosed dangerous tags
+  sanitized = sanitized.replace(
+    /<\s*(script|iframe|object|embed|form|base)\b[^>]*\/?>/gi,
+    '',
+  );
+  // Remove on* event handler attributes (onclick, onerror, onload, etc.)
+  sanitized = sanitized.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  // Remove javascript: protocol in href/src attributes
+  sanitized = sanitized.replace(/(href|src)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, '$1=""');
+  return sanitized;
 }
 
 function escapeHtml(text: string): string {

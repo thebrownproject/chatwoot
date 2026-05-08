@@ -14,6 +14,9 @@ export const teamMemberRoleEnum = pgEnum('team_member_role', [
   'member',
 ]);
 
+/** @deprecated Use teamMemberRoleEnum */
+export const teamRoleEnum = teamMemberRoleEnum;
+
 export const teams = pgTable('teams', {
   id: uuid('id')
     .primaryKey()

@@ -81,6 +81,15 @@ export interface UserListFilters {
   offset?: number;
 }
 
+/** A user record with sensitive fields stripped for API responses */
+export type SafeUser = Omit<User, 'api_key_hash' | 'clerk_id'>;
+
+/** Strip sensitive fields from a user record before returning in API responses */
+export function sanitizeUser(user: User): SafeUser {
+  const { api_key_hash: _apiKeyHash, clerk_id: _clerkId, ...safe } = user;
+  return safe;
+}
+
 /** Auth context attached to Hono request context */
 export interface AuthContext {
   user: User;

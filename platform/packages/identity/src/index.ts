@@ -9,10 +9,13 @@ export type {
   UserCreate,
   UserUpdate,
   User,
+  SafeUser,
   Permission,
   UserListFilters,
   AuthContext,
 } from './types.js';
+
+export { sanitizeUser } from './types.js';
 
 // Data layer
 export {

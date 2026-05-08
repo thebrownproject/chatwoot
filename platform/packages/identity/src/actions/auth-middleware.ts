@@ -1,3 +1,4 @@
+import { timingSafeEqual, scryptSync } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
 import type { User, AuthContext } from '../types.js';
 import type { UserDb } from '../data/users.js';
@@ -10,7 +11,10 @@ export interface AuthMiddlewareDeps {
   userDb: UserDb;
   /** Verify a Clerk JWT. Returns the Clerk user ID (sub claim) or throws. */
   verifyClerkToken: (token: string) => Promise<string>;
-  /** Hash an API key for comparison against stored hashes. */
+  /**
+   * Hash an API key for lookup purposes (e.g. first 8 bytes of scrypt output).
+   * The full verification is done via timing-safe comparison after lookup.
+   */
   hashApiKey: (key: string) => string;
 }
 
@@ -61,7 +65,12 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
     if (apiKeyHeader) {
       const hash = deps.hashApiKey(apiKeyHeader);
       const user = await deps.userDb.findByApiKeyHash(hash);
-      if (!user) {
+      if (!user || !user.api_key_hash) {
+        return c.json({ error: 'Invalid API key' }, 401);
+      }
+
+      // Timing-safe verification: re-derive scrypt hash and compare
+      if (!verifyApiKey(apiKeyHeader, user.api_key_hash)) {
         return c.json({ error: 'Invalid API key' }, 401);
       }
 
@@ -71,4 +80,26 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
 
     return c.json({ error: 'Missing authentication' }, 401);
   });
+}
+
+/**
+ * Verify an API key against a stored scrypt hash using timing-safe comparison.
+ * Hash format: `<hex-salt>:<hex-derived-key>`
+ */
+function verifyApiKey(rawKey: string, storedHash: string): boolean {
+  const parts = storedHash.split(':');
+  if (parts.length !== 2) return false;
+
+  const salt = Buffer.from(parts[0], 'hex');
+  const storedDerived = Buffer.from(parts[1], 'hex');
+
+  let derived: Buffer;
+  try {
+    derived = scryptSync(rawKey, salt, storedDerived.length);
+  } catch {
+    return false;
+  }
+
+  if (derived.length !== storedDerived.length) return false;
+  return timingSafeEqual(derived, storedDerived);
 }
