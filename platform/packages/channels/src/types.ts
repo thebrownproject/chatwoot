@@ -109,13 +109,13 @@ export interface ChannelConfig {
 
 export const createChannelSchema = z.object({
   type: channelTypeEnum,
-  name: z.string().min(1).max(255),
+  name: z.string().min(1).max(255).refine((s) => s.trim().length > 0, { message: 'Name cannot be whitespace-only' }),
   config: z.record(z.unknown()).default({}),
   active: z.boolean().default(true),
 });
 
 export const updateChannelSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
+  name: z.string().min(1).max(255).refine((s) => s.trim().length > 0, { message: 'Name cannot be whitespace-only' }).optional(),
   config: z.record(z.unknown()).optional(),
   active: z.boolean().optional(),
 });
@@ -124,14 +124,14 @@ export const updateChannelSchema = z.object({
 
 export const createWidgetConversationSchema = z.object({
   channelId: z.string().uuid(),
-  contactName: z.string().min(1).max(255),
+  contactName: z.string().min(1).max(255).refine((s) => s.trim().length > 0, { message: 'Contact name cannot be whitespace-only' }),
   contactEmail: z.string().email().optional(),
-  initialMessage: z.string().min(1).optional(),
+  initialMessage: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Message cannot be whitespace-only' }).optional(),
 });
 
 export const createWidgetMessageSchema = z.object({
-  body: z.string().min(1),
-  senderName: z.string().min(1).max(255).optional(),
+  body: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Message body cannot be whitespace-only' }),
+  senderName: z.string().min(1).max(255).refine((s) => s.trim().length > 0, { message: 'Sender name cannot be whitespace-only' }).optional(),
 });
 
 // --- WebSocket event types ---

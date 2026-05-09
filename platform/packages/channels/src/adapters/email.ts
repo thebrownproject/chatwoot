@@ -259,20 +259,61 @@ function generateFallbackMessageId(): string {
  * and any on* event handler attributes.
  */
 export function sanitizeInboundHtml(html: string): string {
-  // Remove dangerous tags and their content
-  let sanitized = html.replace(
-    /<\s*(script|iframe|object|embed|form|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
+  // Strip null bytes that can bypass regex matching
+  let sanitized = html.replace(/\0/g, '');
+
+  // Remove dangerous tags and their content (includes svg/math which can contain scripts)
+  const dangerousTags = 'script|iframe|object|embed|form|base|svg|math|link|meta|style|applet';
+  sanitized = sanitized.replace(
+    new RegExp(`<\\s*(${dangerousTags})\\b[^>]*>[\\s\\S]*?<\\s*\\/\\s*\\1\\s*>`, 'gi'),
     '',
   );
   // Remove self-closing / unclosed dangerous tags
   sanitized = sanitized.replace(
-    /<\s*(script|iframe|object|embed|form|base)\b[^>]*\/?>/gi,
+    new RegExp(`<\\s*(${dangerousTags})\\b[^>]*\\/?>`, 'gi'),
     '',
   );
+
   // Remove on* event handler attributes (onclick, onerror, onload, etc.)
+  // Handles whitespace variants including tabs/newlines between attr name and =
   sanitized = sanitized.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  // Remove javascript: protocol in href/src attributes
-  sanitized = sanitized.replace(/(href|src)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, '$1=""');
+
+  // Decode HTML entities in attribute values to catch encoded protocol bypasses,
+  // then strip dangerous protocols from ALL url-bearing attributes
+  const urlAttrs = 'href|src|action|formaction|xlink:href|data|poster|srcset|background';
+  const dangerousProtocols = /^\s*(?:javascript|vbscript|data)\s*:/i;
+
+  sanitized = sanitized.replace(
+    new RegExp(`(${urlAttrs})\\s*=\\s*("[^"]*"|'[^']*')`, 'gi'),
+    (match, attr: string, quotedVal: string) => {
+      const quote = quotedVal[0];
+      const rawVal = quotedVal.slice(1, -1);
+      // Decode numeric and named entities for protocol check
+      const decoded = rawVal
+        .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)))
+        .replace(/&tab;|&newline;/gi, '');
+      if (dangerousProtocols.test(decoded)) {
+        return `${attr}=${quote}${quote}`;
+      }
+      return match;
+    },
+  );
+
+  // Also handle unquoted attribute values with dangerous protocols
+  sanitized = sanitized.replace(
+    new RegExp(`(${urlAttrs})\\s*=\\s*([^\\s>"'][^\\s>]*)`, 'gi'),
+    (match, attr: string, val: string) => {
+      const decoded = val
+        .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)));
+      if (dangerousProtocols.test(decoded)) {
+        return `${attr}=""`;
+      }
+      return match;
+    },
+  );
+
   return sanitized;
 }
 
