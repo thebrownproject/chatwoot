@@ -110,7 +110,7 @@ agentRoutes.get('/:id', async (c) => {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
-  return c.json(config);
+  return c.json({ data: config });
 });
 
 // ---------------------------------------------------------------------------
@@ -132,7 +132,7 @@ agentRoutes.patch('/:id', async (c) => {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
-  return c.json(updated);
+  return c.json({ data: updated });
 });
 
 // ---------------------------------------------------------------------------
@@ -164,5 +164,5 @@ agentRoutes.post('/:id/process', async (c) => {
     message,
   );
 
-  return c.json(response);
+  return c.json({ data: response });
 });

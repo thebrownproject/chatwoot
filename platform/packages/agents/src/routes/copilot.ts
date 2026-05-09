@@ -55,7 +55,7 @@ copilotRoutes.post('/:id/suggestions/:suggestionId/accept', async (c) => {
     return c.json({ error: 'Suggestion not found or already actioned' }, 404);
   }
 
-  return c.json(suggestion);
+  return c.json({ data: suggestion });
 });
 
 // ---------------------------------------------------------------------------
@@ -71,5 +71,5 @@ copilotRoutes.post('/:id/suggestions/:suggestionId/dismiss', async (c) => {
     return c.json({ error: 'Suggestion not found or already actioned' }, 404);
   }
 
-  return c.json(suggestion);
+  return c.json({ data: suggestion });
 });
