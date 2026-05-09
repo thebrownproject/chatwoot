@@ -1,5 +1,30 @@
 # Handover Log
 
+## [2026-05-10] -- Codex QA merged, Node 25 fix, buildpass-ops deployment decision
+
+**What got done:**
+- Merged Codex forensic QA audit (PR #124) — UUID guards, error responses, FK edge cases, inbox UI wiring, 72-check release probe passed
+- Fixed Node.js 25 localStorage breaking Next.js dev server (PR #122) — polyfill in next.config.js
+- Fixed shell `.js` extension issue for Bundler mode
+- Explored buildpass-ops module architecture — confirmed messaging fits as a module
+- All work merged to develop — clean branch, ready for next session
+
+**Decisions made:**
+- Production deployment goes through `buildpass-ops` as a `messaging` module (not standalone) — documented in decisions.md
+- Use fresh agents (`subagent_type: "general-purpose"`) not forks for review tasks — forks waste tokens carrying full conversation context
+- UI needs complete design refresh before shipping to Joanna's team
+
+**What's next:**
+1. Set up Neon database + run migrations
+2. Phase B: Drizzle adapters (~8 sessions per integration-checklist.md)
+3. Phase C: Wire modules + connect UI to real API
+4. Eventually port to buildpass-ops as `src/modules/messaging/`
+
+**Blocked / needs Fraser:**
+- Neon database provisioning
+- Widget visitor token design
+- UI design direction
+
 ## [2026-05-09] -- 14-hour marathon: built entire platform, 100 PRs, 30+ Opus 4.7 passes
 
 **Duration:** ~14 hours (23:00 May 8 → 13:00 May 9 AEST)
