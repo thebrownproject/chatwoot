@@ -1,5 +1,92 @@
 # Handover Log
 
+## [2026-05-09] -- 14-hour marathon: built entire platform, 100 PRs, 30+ Opus 4.7 passes
+
+**Duration:** ~14 hours (23:00 May 8 → 13:00 May 9 AEST)
+
+**What got built (from zero to 30k lines):**
+- Brainstormed architecture with Fraser → conversation-centric, agent-native design
+- Wrote architecture spec, got Opus 4.7 review, incorporated feedback
+- Built 11 packages from scratch: db (21 Drizzle tables), identity (Clerk + scrypt), conversations (CRUD + status machine + messages + assignment + labels + canned responses), channels (WebSocket + email threading), routing (rules engine + round-robin + snooze), agents (orchestrator + copilot + handoffs), knowledge-base (portals + articles + search), notifications (dispatcher + settings), analytics (metrics + SLA), shell (inbox UI components), core (event bus + hooks + utils)
+- Built 4 apps: api (Hono server — starts and responds), web (Next.js inbox UI — builds and renders), realtime (stub), widget (stub)
+- 100 PRs merged to develop, 122 total created
+- 610 test cases across 52 files, all passing
+- 30+ Opus 4.7 review passes covering: security, logic bugs, edge cases, race conditions, data validation, return types, test quality, dependencies, barrel exports, state corruption, integration flow, schema drift, external failures, error boundaries, API completeness, module deep dives (all 6 modules), UI deep dive, blind spots, staleness check
+
+**Key bugs found and fixed (selection of ~30+):**
+- XSS in MessageBubble (dangerouslySetInnerHTML unsanitized)
+- senderId/createdBy impersonation via request body
+- actorId from user-controllable header (moved to auth context)
+- Keyword routing false positives (string.includes → word-boundary regex)
+- Round-robin skip after membership change (index clamping)
+- EventBus error swallowing (handler isolation with try/catch)
+- Empty message body accepted at data layer
+- Case-sensitive email dedup (normalized to lowercase)
+- Snooze with past date accepted
+- Contact removable from own conversation
+- assigneeId bypass via updateConversation
+- Email prefix stripping incomplete (loop for stacked Re:/Fwd:)
+- Article slug collisions (unique per portal)
+- Category circular parent references (chain detection)
+- Article status transitions unrestricted (draft→published→archived enforced)
+- Team deletion orphaning routing rules (guard added)
+- Self-handoff infinite loop (guard added)
+- resolvedAt not cleared on reopen (KPI corruption)
+- Public KB routes exposing internal IDs (sanitized)
+- DATABASE_URL crash with no error message (clear error added)
+- Notification dispatcher missing event types (participant_joined added)
+- Node.js 25 localStorage breaking Next.js SSR (polyfill added)
+
+**Architecture + infrastructure:**
+- Unified DB types (camelCase matching Drizzle output)
+- All 11 tsconfigs extend base
+- Full ESM compliance (.js extensions)
+- Smart error middleware (158 routes protected)
+- Shared utils (generateId, zUuid, jsonError, parseUuidParam)
+- Adapter factory for Phase B Drizzle wiring
+- Cross-module event bus with bootstrap wiring
+- Integration checklist with race conditions documented
+- Continuous improvement loop doc
+- .env.example with all required vars
+- API integration tests
+
+**What the platform does (when wired to DB):**
+- Customer support inbox (conversations, assignment, status management)
+- Multi-channel (web chat WebSocket + email with threading)
+- Agent-native (Ron Swanson as copilot, handoff protocols)
+- Knowledge base (customer-facing help center)
+- Routing (keyword rules, round-robin, teams)
+- Notifications (event-driven, per-user settings)
+- Analytics (conversation metrics, SLA tracking)
+
+**Decisions made:**
+- Conversation-centric architecture over event-pipeline or microkernel
+- Single User table for humans and agents (type discriminator)
+- Neon over Supabase (Clerk handles auth)
+- Hono over Next.js API routes (WebSocket support)
+- MVP = standard inbox first, agent features Phase 2
+- camelCase types matching Drizzle (not snake_case from Rails)
+- See docs/decisions.md for full register
+
+**Critical findings documented for next session:**
+- Message flow is 2/8 connected — modules are islands (docs/integration-checklist.md)
+- E2E tests reimplemented 3 modules (identity, notifications, analytics)
+- 4 race conditions to fix during Drizzle wiring
+- Widget needs visitor token system (security)
+
+**What's next:**
+1. Set up Neon database + run drizzle-kit generate + migrations
+2. Phase B: Wire Drizzle adapters (~8 sessions, per docs/integration-checklist.md)
+3. Phase C: Connect modules (5 wiring points documented)
+4. Make UI functional (connect to real API, add click handlers)
+5. Deploy to Fly.io
+
+**Blocked / needs Fraser:**
+- Widget visitor token design (conversation ID enumeration without auth)
+- Neon database provisioning (needs account setup)
+- UI design direction (current scaffold is basic — needs design review)
+- Whether to use forked or fresh agents going forward (fresh recommended)
+
 ## [2026-05-09] -- Overnight improvement loop: 47 PRs, 17 Opus 4.7 passes
 
 **What got done (improvement loop ~23:00-07:00):**
