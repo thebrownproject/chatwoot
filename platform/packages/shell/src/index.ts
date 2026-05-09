@@ -1,9 +1,9 @@
-export { AppLayout } from './components/AppLayout.js';
-export { Sidebar } from './components/Sidebar.js';
-export { Header } from './components/Header.js';
-export { registerModule, getModule, getAllModules, getNavItems } from './registry.js';
-export { channelIcons, channelLabels } from './lib/channels.js';
-export { initials, capitalize, timeAgo, formatTime, formatDate } from './lib/format.js';
+export { AppLayout } from './components/AppLayout';
+export { Sidebar } from './components/Sidebar';
+export { Header } from './components/Header';
+export { registerModule, getModule, getAllModules, getNavItems } from './registry';
+export { channelIcons, channelLabels } from './lib/channels';
+export { initials, capitalize, timeAgo, formatTime, formatDate } from './lib/format';
 export type {
   ModuleManifest,
   NavItem,
@@ -22,4 +22,4 @@ export type {
   Message,
   Attachment,
   ConversationEvent,
-} from './types.js';
+} from './types';
