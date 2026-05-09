@@ -107,4 +107,19 @@ describe('EventBus', () => {
 
     expect(callCount).toBe(0);
   });
+
+  it('continues running handlers when one throws', async () => {
+    const results: number[] = [];
+
+    bus.on('message.created', async () => { results.push(1); });
+    bus.on('message.created', async () => { throw new Error('handler 2 fails'); });
+    bus.on('message.created', async () => { results.push(3); });
+
+    await bus.emit('message.created', {
+      message: { id: 'msg-1', conversationId: 'conv-1', senderId: 'u-1', visibility: 'public' as const },
+      conversation: { id: 'conv-1', status: 'open' as const, assigneeId: null, firstReplyAt: null },
+    });
+
+    expect(results).toEqual([1, 3]);
+  });
 });
