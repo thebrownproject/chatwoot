@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Sidebar } from './Sidebar';
-import { Header } from './Header';
+import { Sidebar } from './Sidebar.js';
+import { Header } from './Header.js';
 import type { InboxView, ConversationStatus, ChannelType, User, Label, Team } from '../types';
 
 interface AppLayoutProps {
