@@ -33,6 +33,7 @@ export {
   getPermission,
   setPermission,
   hasCapability,
+  roleIncludes,
 } from './data/permissions.js';
 export type { PermissionDb } from './data/permissions.js';
 
@@ -40,11 +41,13 @@ export type { PermissionDb } from './data/permissions.js';
 export { findOrCreateContact as deduplicateContact } from './data/users.js';
 export {
   createAuthMiddleware,
+  requireCapability,
 } from './actions/auth-middleware.js';
 export type {
   AuthMiddlewareDeps,
   AuthEnv,
 } from './actions/auth-middleware.js';
+export { verifyApiKeyScrypt } from './actions/verify-api-key.js';
 
 // Routes
 export { createUserRoutes } from './routes/users.js';

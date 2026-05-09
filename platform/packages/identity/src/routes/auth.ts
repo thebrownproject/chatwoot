@@ -1,8 +1,8 @@
-import { timingSafeEqual, scryptSync } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { UserDb } from '../data/users.js';
 import { sanitizeUser } from '../types.js';
+import { verifyApiKeyScrypt } from '../actions/verify-api-key.js';
 
 export interface AuthRouteDeps {
   userDb: UserDb;
@@ -12,26 +12,12 @@ export interface AuthRouteDeps {
   hashApiKey: (key: string) => string;
 }
 
-function verifyApiKeyScrypt(rawKey: string, storedHash: string): boolean {
-  const parts = storedHash.split(':');
-  if (parts.length !== 2) return false;
-  const salt = Buffer.from(parts[0], 'hex');
-  const storedDerived = Buffer.from(parts[1], 'hex');
-  try {
-    const derived = scryptSync(rawKey, salt, storedDerived.length);
-    if (derived.length !== storedDerived.length) return false;
-    return timingSafeEqual(derived, storedDerived);
-  } catch {
-    return false;
-  }
-}
-
 const verifySchema = z.object({
-  token: z.string().min(1),
+  token: z.string().min(1).transform((s) => s.trim()).pipe(z.string().min(1)),
 });
 
 const apiKeySchema = z.object({
-  api_key: z.string().min(1),
+  api_key: z.string().min(1).transform((s) => s.trim()).pipe(z.string().min(1)),
 });
 
 /**
@@ -54,12 +40,12 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
     try {
       clerkUserId = await deps.verifyClerkToken(parsed.data.token);
     } catch {
-      return c.json({ error: 'Invalid or expired token' }, 401);
+      return c.json({ error: 'Invalid credentials' }, 401);
     }
 
     const user = await deps.userDb.findByClerkId(clerkUserId);
     if (!user) {
-      return c.json({ error: 'User not found for Clerk ID' }, 404);
+      return c.json({ error: 'Invalid credentials' }, 401);
     }
 
     return c.json({ data: sanitizeUser(user) });
@@ -76,11 +62,11 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
     const hash = deps.hashApiKey(parsed.data.api_key);
     const user = await deps.userDb.findByApiKeyHash(hash);
     if (!user || !user.apiKeyHash) {
-      return c.json({ error: 'Invalid API key' }, 401);
+      return c.json({ error: 'Invalid credentials' }, 401);
     }
 
     if (!verifyApiKeyScrypt(parsed.data.api_key, user.apiKeyHash)) {
-      return c.json({ error: 'Invalid API key' }, 401);
+      return c.json({ error: 'Invalid credentials' }, 401);
     }
 
     return c.json({ data: sanitizeUser(user) });
