@@ -7,6 +7,7 @@ import {
   updateConversation,
   resolveConversation,
   reopenConversation,
+  pendConversation,
   snoozeConversation,
   unsnoozeConversation,
   getConversationEvents,
@@ -200,6 +201,82 @@ describe('updateConversation', () => {
     const result = await updateConversation(db, 'nonexistent', { subject: 'test' });
     expect(result).toBeUndefined();
   });
+
+  it('creates an event when actorId is provided', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    await updateConversation(db, conv.id, { subject: 'New subject' }, 'agent-1');
+
+    const events = await getConversationEvents(db, conv.id);
+    const updateEvent = events.find(
+      (e) => e.eventType === 'status_changed' && 'changes' in e.payload,
+    );
+    expect(updateEvent).toBeDefined();
+    expect(updateEvent!.actorId).toBe('agent-1');
+    expect((updateEvent!.payload as Record<string, unknown>).changes).toEqual({
+      subject: 'New subject',
+    });
+  });
+
+  it('does not create an event when actorId is omitted', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    await updateConversation(db, conv.id, { subject: 'New subject' });
+
+    const events = await getConversationEvents(db, conv.id);
+    expect(events).toHaveLength(1); // only the 'created' event
+  });
+
+  it('returns existing conversation unchanged when no update fields provided', async () => {
+    const conv = await createConversation(db, {
+      channelOrigin: 'email',
+      subject: 'Original',
+    });
+    const result = await updateConversation(db, conv.id, {});
+    expect(result).toBeDefined();
+    expect(result!.subject).toBe('Original');
+  });
+});
+
+describe('pendConversation', () => {
+  it('moves an open conversation to pending', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    const result = await pendConversation(db, conv.id, 'agent-1');
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.conversation.status).toBe('pending');
+    }
+  });
+
+  it('creates a status_changed event', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    await pendConversation(db, conv.id, 'agent-1');
+
+    const events = await getConversationEvents(db, conv.id);
+    const pendEvent = events.find((e) => e.eventType === 'status_changed');
+    expect(pendEvent).toBeDefined();
+    expect(pendEvent!.actorId).toBe('agent-1');
+  });
+
+  it('rejects pending on a resolved conversation', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    await resolveConversation(db, conv.id, 'agent-1');
+
+    const result = await pendConversation(db, conv.id, 'agent-1');
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects pending on an already-pending conversation', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    await pendConversation(db, conv.id, 'agent-1');
+
+    const result = await pendConversation(db, conv.id, 'agent-1');
+    expect(result.ok).toBe(false);
+  });
+
+  it('returns error for unknown conversation', async () => {
+    const result = await pendConversation(db, 'nonexistent', 'agent-1');
+    expect(result).toEqual({ ok: false, error: 'Conversation not found' });
+  });
 });
 
 describe('resolveConversation', () => {
@@ -378,33 +455,134 @@ describe('full lifecycle', () => {
     expect(unsnoozed!.snoozedUntil).toBeNull();
   });
 
-  it('pending -> resolved (via status machine)', async () => {
-    // The conversations data layer doesn't expose a direct "set pending" function,
-    // since pending transitions will be driven by the messages module (e.g. waiting
-    // on customer reply). This test validates the status machine allows the path.
-    const { transitionConversation } = await import('../data/status-machine.js');
+  it('open -> pending -> resolved (using pendConversation)', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
 
-    let status: string = 'open';
-    const pendingResult = await transitionConversation({
-      conversationId: 'test-conv',
-      actorId: 'agent-1',
-      currentStatus: 'open',
-      newStatus: 'pending',
-      onUpdate: async (data) => { status = data.status; },
-      onEvent: async () => {},
-    });
-    expect(pendingResult.ok).toBe(true);
-    expect(status).toBe('pending');
+    const pendResult = await pendConversation(db, conv.id, 'agent-1');
+    expect(pendResult.ok).toBe(true);
+    if (pendResult.ok) {
+      expect(pendResult.conversation.status).toBe('pending');
+    }
 
-    const resolvedResult = await transitionConversation({
-      conversationId: 'test-conv',
-      actorId: 'agent-1',
-      currentStatus: 'pending',
-      newStatus: 'resolved',
-      onUpdate: async (data) => { status = data.status; },
-      onEvent: async () => {},
+    const resolveResult = await resolveConversation(db, conv.id, 'agent-1');
+    expect(resolveResult.ok).toBe(true);
+    if (resolveResult.ok) {
+      expect(resolveResult.conversation.status).toBe('resolved');
+    }
+
+    const events = await getConversationEvents(db, conv.id);
+    const types = events.map((e) => e.eventType);
+    expect(types).toEqual(['created', 'status_changed', 'resolved']);
+  });
+
+  it('open -> pending -> open (pending reopened)', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+
+    await pendConversation(db, conv.id, 'agent-1');
+    const reopened = await reopenConversation(db, conv.id, 'agent-1');
+    expect(reopened.ok).toBe(true);
+    if (reopened.ok) {
+      expect(reopened.conversation.status).toBe('open');
+    }
+  });
+
+  it('multiple resolves and reopens create correct audit trail', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'web_chat' });
+
+    await resolveConversation(db, conv.id, 'agent-1');
+    await reopenConversation(db, conv.id, 'contact-1');
+    await resolveConversation(db, conv.id, 'agent-2');
+
+    const events = await getConversationEvents(db, conv.id);
+    const types = events.map((e) => e.eventType);
+    expect(types).toEqual(['created', 'resolved', 'reopened', 'resolved']);
+  });
+});
+
+describe('edge cases', () => {
+  it('conversations with default metadata get empty object', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    expect(conv.metadata).toEqual({});
+  });
+
+  it('listConversations with combined filters', async () => {
+    await createConversation(db, {
+      channelOrigin: 'email',
+      priority: 'urgent',
+      assigneeId: 'agent-1',
     });
-    expect(resolvedResult.ok).toBe(true);
-    expect(status).toBe('resolved');
+    await createConversation(db, {
+      channelOrigin: 'email',
+      priority: 'low',
+      assigneeId: 'agent-1',
+    });
+    await createConversation(db, {
+      channelOrigin: 'web_chat',
+      priority: 'urgent',
+      assigneeId: 'agent-2',
+    });
+
+    const result = await listConversations(db, {
+      channelOrigin: 'email',
+      priority: 'urgent',
+      assigneeId: 'agent-1',
+    });
+    expect(result.total).toBe(1);
+    expect(result.data[0]!.priority).toBe('urgent');
+    expect(result.data[0]!.channelOrigin).toBe('email');
+  });
+
+  it('listConversations sorts newest first', async () => {
+    const a = await createConversation(db, { channelOrigin: 'email' });
+    // Ensure different timestamps
+    await new Promise((r) => setTimeout(r, 2));
+    const b = await createConversation(db, { channelOrigin: 'email' });
+
+    const result = await listConversations(db);
+    expect(result.data[0]!.id).toBe(b.id);
+    expect(result.data[1]!.id).toBe(a.id);
+  });
+
+  it('listConversations returns empty for no matches', async () => {
+    await createConversation(db, { channelOrigin: 'email' });
+
+    const result = await listConversations(db, { channelOrigin: 'slack' });
+    expect(result.total).toBe(0);
+    expect(result.data).toEqual([]);
+  });
+
+  it('offset beyond total returns empty data but correct total', async () => {
+    await createConversation(db, { channelOrigin: 'email' });
+    await createConversation(db, { channelOrigin: 'email' });
+
+    const result = await listConversations(db, { offset: 100 });
+    expect(result.total).toBe(2);
+    expect(result.data).toEqual([]);
+  });
+
+  it('createdAt and updatedAt are set on creation', async () => {
+    const before = new Date();
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    const after = new Date();
+
+    expect(conv.createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(conv.createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
+    expect(conv.updatedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+  });
+
+  it('updatedAt changes on update', async () => {
+    const conv = await createConversation(db, { channelOrigin: 'email' });
+    const originalUpdatedAt = conv.updatedAt;
+
+    // Small delay to ensure timestamp difference
+    await new Promise((r) => setTimeout(r, 1));
+
+    const updated = await updateConversation(db, conv.id, { subject: 'Changed' });
+    expect(updated!.updatedAt.getTime()).toBeGreaterThanOrEqual(originalUpdatedAt.getTime());
+  });
+
+  it('getConversationEvents returns empty array for nonexistent conversation', async () => {
+    const events = await getConversationEvents(db, 'nonexistent-id');
+    expect(events).toEqual([]);
   });
 });

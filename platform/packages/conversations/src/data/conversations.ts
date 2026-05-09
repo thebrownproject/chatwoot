@@ -376,27 +376,70 @@ export async function updateConversation(
   db: DbClient,
   id: string,
   data: ConversationUpdate,
+  actorId?: string,
 ): Promise<Conversation | undefined> {
+  const changes: Record<string, unknown> = {};
+  if (data.subject !== undefined) changes.subject = data.subject;
+  if (data.priority !== undefined) changes.priority = data.priority;
+  if (data.metadata !== undefined) changes.metadata = data.metadata;
+
+  if (Object.keys(changes).length === 0) {
+    return getConversationById(db, id);
+  }
+
   if (isDrizzleDb(db)) {
+    const existing = await getConversationById(db, id);
+    if (!existing) return undefined;
+
+    const dbChanges: Record<string, unknown> = {};
+    if (data.subject !== undefined) dbChanges.subject = data.subject;
+    if (data.priority !== undefined) dbChanges.priority = data.priority;
+    if (data.metadata !== undefined) dbChanges.metadata = { ...existing.metadata, ...data.metadata };
+
     const [row] = (await db
       .update(conversations)
-      .set({
-        ...(data.subject !== undefined ? { subject: data.subject } : {}),
-        ...(data.priority !== undefined ? { priority: data.priority } : {}),
-        ...(data.metadata !== undefined ? { metadata: data.metadata } : {}),
-      })
+      .set(dbChanges)
       .where(eq(conversations.id, id))
       .returning()) as Array<typeof conversations.$inferSelect>;
+
+    if (row && actorId) {
+      await createEvent(db, {
+        conversationId: id,
+        actorId,
+        eventType: 'status_changed',
+        payload: { changes },
+      });
+    }
+
     return row ? toConversation(row) : undefined;
   }
 
   const conv = store.conversations.get(id);
   if (!conv) return undefined;
 
-  if (data.subject !== undefined) conv.subject = data.subject;
-  if (data.priority !== undefined) conv.priority = data.priority;
-  if (data.metadata !== undefined) conv.metadata = { ...conv.metadata, ...data.metadata };
+  const previousValues: Record<string, unknown> = {};
+  if (data.subject !== undefined) {
+    previousValues.subject = conv.subject;
+    conv.subject = data.subject;
+  }
+  if (data.priority !== undefined) {
+    previousValues.priority = conv.priority;
+    conv.priority = data.priority;
+  }
+  if (data.metadata !== undefined) {
+    previousValues.metadata = { ...conv.metadata };
+    conv.metadata = { ...conv.metadata, ...data.metadata };
+  }
   conv.updatedAt = now();
+
+  if (actorId) {
+    await createEvent(db, {
+      conversationId: id,
+      actorId,
+      eventType: 'status_changed',
+      payload: { changes, previousValues },
+    });
+  }
 
   return conv;
 }
@@ -420,11 +463,7 @@ export async function reopenConversation(
   id: string,
   actorId: string,
 ): Promise<TransitionResult> {
-  const result = await applyTransition(db, id, actorId, 'open');
-  if (result.ok) {
-    result.conversation.resolvedAt = null;
-  }
-  return result;
+  return applyTransition(db, id, actorId, 'open');
 }
 
 /**
