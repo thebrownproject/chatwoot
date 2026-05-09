@@ -13,13 +13,18 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-    ...options,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+  } catch {
+    throw new ApiError(0, 'Network error — unable to reach the API server');
+  }
 
   if (!res.ok) {
     throw new ApiError(res.status, `API error: ${res.status} ${res.statusText}`);
