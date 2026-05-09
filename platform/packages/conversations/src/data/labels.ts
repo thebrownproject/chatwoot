@@ -1,6 +1,4 @@
-import { eq, and } from 'drizzle-orm';
-import type { DbClient } from '@buildpass/db';
-import { labels, conversationLabels } from '@buildpass/db';
+import type { Db } from './db.js';
 import type {
   CreateLabelInput,
   ConversationLabelInput,
@@ -9,81 +7,50 @@ import type {
 } from '../types/labels.js';
 
 export async function createLabel(
-  db: DbClient,
+  db: Db,
   input: CreateLabelInput,
 ): Promise<Label> {
-  const [row] = await db
-    .insert(labels)
-    .values({
-      name: input.name,
-      color: input.color ?? null,
-    })
-    .returning();
+  const trimmed = input.name.trim();
+  if (trimmed.length === 0) {
+    throw new Error('Label name cannot be empty');
+  }
 
-  return row as Label;
+  const existing = await db.labels.findByName(trimmed);
+  if (existing) {
+    return existing;
+  }
+
+  return db.labels.create(trimmed, input.color ?? null);
 }
 
-export async function listLabels(db: DbClient): Promise<Label[]> {
-  const rows = await db.select().from(labels).orderBy(labels.name);
-  return rows as Label[];
+export async function listLabels(db: Db): Promise<Label[]> {
+  return db.labels.list();
 }
 
 export async function addLabelToConversation(
-  db: DbClient,
+  db: Db,
   input: ConversationLabelInput,
 ): Promise<ConversationLabel> {
-  const [row] = await db
-    .insert(conversationLabels)
-    .values({
-      conversationId: input.conversationId,
-      labelId: input.labelId,
-    })
-    .onConflictDoNothing()
-    .returning();
-
-  return (row ?? input) as ConversationLabel;
+  return db.labels.addToConversation(input.conversationId, input.labelId);
 }
 
 export async function removeLabelFromConversation(
-  db: DbClient,
+  db: Db,
   input: ConversationLabelInput,
 ): Promise<void> {
-  await db
-    .delete(conversationLabels)
-    .where(
-      and(
-        eq(conversationLabels.conversationId, input.conversationId),
-        eq(conversationLabels.labelId, input.labelId),
-      ),
-    );
+  return db.labels.removeFromConversation(input.conversationId, input.labelId);
 }
 
 export async function getConversationLabels(
-  db: DbClient,
+  db: Db,
   conversationId: string,
 ): Promise<Label[]> {
-  const rows = await db
-    .select({
-      id: labels.id,
-      name: labels.name,
-      color: labels.color,
-      createdAt: labels.createdAt,
-    })
-    .from(conversationLabels)
-    .innerJoin(labels, eq(conversationLabels.labelId, labels.id))
-    .where(eq(conversationLabels.conversationId, conversationId));
-
-  return rows as Label[];
+  return db.labels.getConversationLabels(conversationId);
 }
 
 export async function getConversationsByLabel(
-  db: DbClient,
+  db: Db,
   labelId: string,
 ): Promise<string[]> {
-  const rows = await db
-    .select({ conversationId: conversationLabels.conversationId })
-    .from(conversationLabels)
-    .where(eq(conversationLabels.labelId, labelId));
-
-  return rows.map((r) => r.conversationId);
+  return db.labels.getConversationsByLabel(labelId);
 }

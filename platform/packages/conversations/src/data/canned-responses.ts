@@ -1,6 +1,4 @@
-import { eq, ilike } from 'drizzle-orm';
-import type { DbClient } from '@buildpass/db';
-import { cannedResponses } from '@buildpass/db';
+import type { Db } from './db.js';
 import type {
   CreateCannedResponseInput,
   UpdateCannedResponseInput,
@@ -9,97 +7,59 @@ import type {
 } from '../types/canned-responses.js';
 
 export async function createCannedResponse(
-  db: DbClient,
+  db: Db,
   input: CreateCannedResponseInput,
 ): Promise<CannedResponse> {
-  if (!input.title || input.title.trim().length === 0) {
-    throw new Error('Canned response title cannot be empty');
-  }
-  if (!input.body || input.body.trim().length === 0) {
-    throw new Error('Canned response body cannot be empty');
-  }
-  const [row] = await db
-    .insert(cannedResponses)
-    .values({
-      title: input.title,
-      body: input.body,
-      bodyHtml: input.bodyHtml ?? null,
-      createdBy: input.createdBy,
-    })
-    .returning();
-
-  return row as CannedResponse;
+  return db.cannedResponses.create({
+    title: input.title,
+    body: input.body,
+    bodyHtml: input.bodyHtml ?? null,
+    createdBy: input.createdBy,
+  });
 }
 
 export async function getCannedResponseById(
-  db: DbClient,
+  db: Db,
   id: string,
 ): Promise<CannedResponse | undefined> {
-  const [row] = await db
-    .select()
-    .from(cannedResponses)
-    .where(eq(cannedResponses.id, id))
-    .limit(1);
-
-  return row as CannedResponse | undefined;
+  return db.cannedResponses.getById(id);
 }
 
 export async function listCannedResponses(
-  db: DbClient,
+  db: Db,
 ): Promise<CannedResponse[]> {
-  const rows = await db
-    .select()
-    .from(cannedResponses)
-    .orderBy(cannedResponses.title);
-
-  return rows as CannedResponse[];
+  return db.cannedResponses.list();
 }
 
 export async function updateCannedResponse(
-  db: DbClient,
+  db: Db,
   id: string,
   input: UpdateCannedResponseInput,
 ): Promise<CannedResponse | undefined> {
-  const [row] = await db
-    .update(cannedResponses)
-    .set({
-      ...(input.title !== undefined && { title: input.title }),
-      ...(input.body !== undefined && { body: input.body }),
-      ...(input.bodyHtml !== undefined && { bodyHtml: input.bodyHtml ?? null }),
-      updatedAt: new Date(),
-    })
-    .where(eq(cannedResponses.id, id))
-    .returning();
+  if (input.title !== undefined && input.title.trim().length === 0) {
+    throw new Error('Canned response title cannot be empty');
+  }
+  if (input.body !== undefined && input.body.trim().length === 0) {
+    throw new Error('Canned response body cannot be empty');
+  }
 
-  return row as CannedResponse | undefined;
+  return db.cannedResponses.update(id, {
+    ...(input.title !== undefined && { title: input.title }),
+    ...(input.body !== undefined && { body: input.body }),
+    ...(input.bodyHtml !== undefined && { bodyHtml: input.bodyHtml ?? null }),
+  });
 }
 
 export async function deleteCannedResponse(
-  db: DbClient,
+  db: Db,
   id: string,
 ): Promise<boolean> {
-  const result = await db
-    .delete(cannedResponses)
-    .where(eq(cannedResponses.id, id))
-    .returning({ id: cannedResponses.id });
-
-  return result.length > 0;
-}
-
-function escapeIlike(value: string): string {
-  return value.replace(/[%_\\]/g, (ch) => `\\${ch}`);
+  return db.cannedResponses.delete(id);
 }
 
 export async function searchCannedResponses(
-  db: DbClient,
+  db: Db,
   input: SearchCannedResponsesInput,
 ): Promise<CannedResponse[]> {
-  const rows = await db
-    .select()
-    .from(cannedResponses)
-    .where(ilike(cannedResponses.title, `%${escapeIlike(input.query)}%`))
-    .orderBy(cannedResponses.title)
-    .limit(input.limit);
-
-  return rows as CannedResponse[];
+  return db.cannedResponses.search(input.query, input.limit);
 }

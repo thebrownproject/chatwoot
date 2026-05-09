@@ -8,9 +8,11 @@ import {
   removeLabelFromConversation,
   getConversationLabels,
 } from '../data/labels.js';
-import type { RouteEnv } from './shared.js';
+import type { Db } from '../data/db.js';
 
-export const labelRoutes = new Hono<RouteEnv>();
+type LabelEnv = { Variables: { db: Db } };
+
+export const labelRoutes = new Hono<LabelEnv>();
 
 labelRoutes.get('/labels', async (c) => {
   const db = c.get('db');
