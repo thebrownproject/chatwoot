@@ -178,3 +178,17 @@ describe('full handoff lifecycle', () => {
     expect(events[1]!.eventType).toBe('escalated');
   });
 });
+
+describe('self-handoff prevention', () => {
+  it('requestHandoff rejects handoff to self', async () => {
+    await expect(
+      requestHandoff(db, 'agent-ron', 'conv-1', 'confused', 'agent-ron'),
+    ).rejects.toThrow('Cannot hand off to self');
+  });
+
+  it('handoffAgentToAgent rejects handoff to self', async () => {
+    await expect(
+      handoffAgentToAgent(db, 'conv-1', 'agent-ron', 'agent-ron', 'loop'),
+    ).rejects.toThrow('Cannot hand off to self');
+  });
+});
