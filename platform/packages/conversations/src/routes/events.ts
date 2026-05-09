@@ -19,9 +19,9 @@ eventsRoutes.get('/conversations/:id/events', async (c) => {
       return c.json({ error: `Invalid event type: ${typeParam}` }, 400);
     }
     const result = await events.getEventsByType(db, conversationId, parsed.data);
-    return c.json(result);
+    return c.json({ data: result });
   }
 
   const result = await events.listEvents(db, conversationId);
-  return c.json(result);
+  return c.json({ data: result });
 });

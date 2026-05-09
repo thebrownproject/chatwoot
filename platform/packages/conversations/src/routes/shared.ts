@@ -8,8 +8,10 @@ export type RouteEnv = {
   };
 };
 
-/** Parse an optional numeric query parameter, returning undefined if absent. */
+/** Parse an optional numeric query parameter, returning undefined if absent or non-numeric. */
 export function numParam(c: Context, name: string): number | undefined {
   const raw = c.req.query(name);
-  return raw !== undefined ? Number(raw) : undefined;
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
 }

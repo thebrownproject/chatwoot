@@ -2,14 +2,15 @@ import type { Db } from '../data/db.js';
 import type { ParticipantRole, ConversationParticipant, ParticipantWithUser } from '../types/participants.js';
 import type { ConversationEvent, ConversationEventCreate } from '../types/events.js';
 import type { AssignedConversation, AssignedConversationsFilter, ConversationAssignee } from '../types/assignment.js';
+import type { Message, CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
 
 /** Simple in-memory DB for unit tests. */
 export function createTestDb(): Db {
   const participantStore: ConversationParticipant[] = [];
   const eventStore: ConversationEvent[] = [];
+  const messageStore: Message[] = [];
   const conversationAssignees: Map<string, string | null> = new Map();
 
-  // Seed some test conversations
   const conversationStore: AssignedConversation[] = [];
 
   let idCounter = 0;
@@ -33,10 +34,12 @@ export function createTestDb(): Db {
     seedUser: typeof seedUser;
     seedConversation: typeof seedConversation;
     getEvents: () => ConversationEvent[];
+    getMessages: () => Message[];
   } = {
     seedUser,
     seedConversation,
     getEvents: () => [...eventStore],
+    getMessages: () => [...messageStore],
     participants: {
       async add(conversationId, userId, role): Promise<ConversationParticipant> {
         const p: ConversationParticipant = {
@@ -134,6 +137,49 @@ export function createTestDb(): Db {
         return eventStore
           .filter((e) => e.conversationId === conversationId && e.eventType === eventType)
           .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      },
+    },
+    messages: {
+      async create(input: CreateMessageInput): Promise<Message> {
+        const timestamp = new Date();
+        const msg: Message = {
+          id: nextId(),
+          conversationId: input.conversationId,
+          senderId: input.senderId,
+          type: input.type ?? 'text',
+          visibility: input.visibility ?? 'public',
+          body: input.body,
+          bodyHtml: input.bodyHtml ?? null,
+          metadata: input.metadata ?? {},
+          attachments: input.attachments ?? [],
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        messageStore.push(msg);
+        return msg;
+      },
+      async getById(id: string): Promise<Message | undefined> {
+        return messageStore.find((m) => m.id === id);
+      },
+      async list(input: ListMessagesInput): Promise<Message[]> {
+        const filtered = messageStore
+          .filter((m) => {
+            if (m.conversationId !== input.conversationId) return false;
+            if (input.visibility && m.visibility !== input.visibility) return false;
+            return true;
+          })
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const limit = input.limit ?? 50;
+        const offset = input.offset ?? 0;
+        return filtered.slice(offset, offset + limit);
+      },
+      async search(input: SearchMessagesInput): Promise<Message[]> {
+        const query = input.query.toLowerCase();
+        const filtered = messageStore
+          .filter((m) => m.body.toLowerCase().includes(query));
+        const limit = input.limit ?? 20;
+        const offset = input.offset ?? 0;
+        return filtered.slice(offset, offset + limit);
       },
     },
   };
