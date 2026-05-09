@@ -75,7 +75,7 @@ conversationRoutes.get('/', async (c) => {
   }
 
   const result = await listConversations(db, parsed.data);
-  return c.json(result);
+  return c.json({ data: result });
 });
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ conversationRoutes.get('/by-number/:displayId', async (c) => {
     return c.json({ error: 'Conversation not found' }, 404);
   }
 
-  return c.json(conversation);
+  return c.json({ data: conversation });
 });
 
 // ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ conversationRoutes.get('/:id', async (c) => {
     return c.json({ error: 'Conversation not found' }, 404);
   }
 
-  return c.json(conversation);
+  return c.json({ data: conversation });
 });
 
 // ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ conversationRoutes.patch('/:id', async (c) => {
     return c.json({ error: 'Conversation not found' }, 404);
   }
 
-  return c.json(conversation);
+  return c.json({ data: conversation });
 });
 
 // ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ conversationRoutes.post('/:id/resolve', async (c) => {
     return c.json({ error: result.error }, status);
   }
 
-  return c.json(result.conversation);
+  return c.json({ data: result.conversation });
 });
 
 // ---------------------------------------------------------------------------
@@ -188,7 +188,7 @@ conversationRoutes.post('/:id/reopen', async (c) => {
     return c.json({ error: result.error }, status);
   }
 
-  return c.json(result.conversation);
+  return c.json({ data: result.conversation });
 });
 
 // ---------------------------------------------------------------------------
@@ -214,5 +214,5 @@ conversationRoutes.post('/:id/snooze', async (c) => {
     return c.json({ error: result.error }, status);
   }
 
-  return c.json(result.conversation);
+  return c.json({ data: result.conversation });
 });
