@@ -149,4 +149,69 @@ describe('evaluate', () => {
     const rules = [makeRule({ conditions: {} })];
     expect(evaluate(conv, rules)).not.toBeNull();
   });
+
+  it('returns null for empty rules array', () => {
+    const conv = makeConversation();
+    expect(evaluate(conv, [])).toBeNull();
+  });
+
+  it('uses stable tiebreak when priorities are equal', () => {
+    const conv = makeConversation({ channelOrigin: 'email' });
+    const rules = [
+      makeRule({ id: 'bbb', priority: 10, conditions: { channel: 'email' }, targetId: 'user-b' }),
+      makeRule({ id: 'aaa', priority: 10, conditions: { channel: 'email' }, targetId: 'user-a' }),
+    ];
+    const match = evaluate(conv, rules);
+    expect(match!.ruleId).toBe('aaa');
+  });
+});
+
+describe('edge cases', () => {
+  it('ignores empty keyword strings in conditions', () => {
+    const conv = makeConversation({ subject: 'Hello world' });
+    expect(matchConditions(conv, { keywords: [''] })).toBe(true);
+    expect(matchConditions(conv, { keywords: ['', '  '] })).toBe(true);
+  });
+
+  it('ignores empty label strings in conditions', () => {
+    const conv = makeConversation({ labels: [] });
+    expect(matchConditions(conv, { labels: [''] })).toBe(true);
+    expect(matchConditions(conv, { labels: ['', '  '] })).toBe(true);
+  });
+
+  it('treats conditions with only empty keywords as catch-all', () => {
+    const conv = makeConversation({ subject: 'anything' });
+    const rules = [makeRule({ conditions: { keywords: ['', '  '] } })];
+    expect(evaluate(conv, rules)).not.toBeNull();
+  });
+
+  it('filters empty keywords but still matches valid ones', () => {
+    const conv = makeConversation({ subject: 'I need a refund' });
+    expect(matchConditions(conv, { keywords: ['', 'refund'] })).toBe(true);
+    expect(matchConditions(conv, { keywords: ['', 'upgrade'] })).toBe(false);
+  });
+
+  it('handles conversation with no subject and no body', () => {
+    const conv = makeConversation({ subject: null, body: null });
+    expect(matchConditions(conv, { keywords: ['anything'] })).toBe(false);
+  });
+
+  it('handles conversation with undefined labels', () => {
+    const conv: RoutableConversation = {
+      id: 'conv-1',
+      channelOrigin: 'email',
+    };
+    expect(matchConditions(conv, { labels: ['billing'] })).toBe(false);
+  });
+
+  it('escapes regex special characters in keywords', () => {
+    const conv = makeConversation({ subject: 'The price was 100.00 dollars' });
+    expect(matchConditions(conv, { keywords: ['100.00'] })).toBe(true);
+    expect(matchConditions(conv, { keywords: ['100.01'] })).toBe(false);
+  });
+
+  it('does not treat regex metacharacters as patterns', () => {
+    const conv = makeConversation({ subject: 'Use .* for wildcards' });
+    expect(matchConditions(conv, { keywords: ['.*'] })).toBe(false);
+  });
 });

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { RoutingDb } from '../types.js';
 import { routingRuleCreateSchema, routingRuleUpdateSchema } from '../types.js';
 import {
@@ -10,6 +11,8 @@ import {
 } from '../data/routing-rules.js';
 
 type Env = { Variables: { db: RoutingDb } };
+
+const uuidSchema = z.string().uuid();
 
 export function routingRulesRoutes(db: RoutingDb) {
   const app = new Hono<Env>();
@@ -23,7 +26,7 @@ export function routingRulesRoutes(db: RoutingDb) {
   /** GET /routing-rules — list rules ordered by priority */
   app.get('/', async (c) => {
     const rules = await listRoutingRules(c.var.db);
-    return c.json(rules);
+    return c.json({ data: rules });
   });
 
   /** POST /routing-rules — create a new rule */
@@ -37,12 +40,15 @@ export function routingRulesRoutes(db: RoutingDb) {
       return c.json({ error: 'Target team not found' }, 404);
     }
     const rule = await createRoutingRule(c.var.db, parsed.data);
-    return c.json(rule, 201);
+    return c.json({ data: rule }, 201);
   });
 
   /** PATCH /routing-rules/:id — update a rule */
   app.patch('/:id', async (c) => {
     const id = c.req.param('id');
+    if (!uuidSchema.safeParse(id).success) {
+      return c.json({ error: 'Invalid ID format' }, 400);
+    }
     const body = await c.req.json();
     const parsed = routingRuleUpdateSchema.safeParse(body);
     if (!parsed.success) {
@@ -58,12 +64,15 @@ export function routingRulesRoutes(db: RoutingDb) {
     }
 
     const rule = await updateRoutingRule(c.var.db, id, parsed.data);
-    return c.json(rule);
+    return c.json({ data: rule });
   });
 
   /** DELETE /routing-rules/:id — delete a rule */
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
+    if (!uuidSchema.safeParse(id).success) {
+      return c.json({ error: 'Invalid ID format' }, 400);
+    }
     const deleted = await deleteRoutingRule(c.var.db, id);
     if (!deleted) return c.json({ error: 'Not found' }, 404);
     return c.body(null, 204);
@@ -72,9 +81,12 @@ export function routingRulesRoutes(db: RoutingDb) {
   /** POST /routing-rules/:id/toggle — toggle active/inactive */
   app.post('/:id/toggle', async (c) => {
     const id = c.req.param('id');
+    if (!uuidSchema.safeParse(id).success) {
+      return c.json({ error: 'Invalid ID format' }, 400);
+    }
     const rule = await toggleRoutingRule(c.var.db, id);
     if (!rule) return c.json({ error: 'Not found' }, 404);
-    return c.json(rule);
+    return c.json({ data: rule });
   });
 
   return app;
