@@ -27,6 +27,14 @@ The identity module's `User` type uses `snake_case` fields (`avatar_url`, `clerk
 - [ ] Set up Neon project + get `DATABASE_URL`, configure `.env`
 - [ ] Run migrations against Neon using `packages/db/src/migrate.ts`
 
+## Race conditions to fix during Drizzle wiring
+
+These exist in the in-memory stores but resolve with proper Drizzle queries:
+- **Double status transition**: Use `UPDATE ... WHERE status = 'open' RETURNING *` to prevent duplicate events
+- **Duplicate participants**: Use `INSERT ... ON CONFLICT DO NOTHING RETURNING *`
+- **Assignment race**: Wrap assign + add-participant + create-event in a transaction
+- **Contact removal race**: Use `DELETE ... WHERE role != 'contact' RETURNING *` (atomic check)
+
 ## Phase B: Drizzle adapters per module (parallel, 1 agent each)
 - [ ] **identity** (10 functions): Write Drizzle `UserDb`/`PermissionDb` adapter
 - [ ] **conversations** (44 functions): Replace in-memory Maps with Drizzle queries. Split: CRUD (11), messages (4), labels (6), canned-responses (6), assignment (5), participants (6), events (3), status-machine (3)
