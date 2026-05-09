@@ -26,6 +26,8 @@ export {
   deleteArticle,
   publishArticle,
   archiveArticle,
+  unarchiveArticle,
+  transitionArticle,
   incrementViewCount,
   searchArticles,
 } from './data/articles.js';
