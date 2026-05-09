@@ -11,16 +11,18 @@ import {
 import type { UserType } from '../types.js';
 import { sanitizeUser } from '../types.js';
 
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const userCreateSchema = z.object({
   type: z.enum(['human_agent', 'ai_agent', 'contact', 'system']),
-  name: z.string().min(1),
+  name: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Name cannot be whitespace-only' }),
   email: z.string().email().nullish(),
   avatarUrl: z.string().url().nullish(),
   metadata: z.record(z.unknown()).nullish(),
 });
 
 const userUpdateSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Name cannot be whitespace-only' }).optional(),
   email: z.string().email().nullish(),
   avatarUrl: z.string().url().nullish(),
   metadata: z.record(z.unknown()).nullish(),
@@ -67,6 +69,9 @@ export function createUserRoutes(db: UserDb) {
   // GET /users/:id — get user by ID
   app.get('/:id', async (c) => {
     const id = c.req.param('id');
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid user ID format' }, 400);
+    }
     const user = await getUserById(db, id);
     if (!user) {
       return c.json({ error: 'User not found' }, 404);
@@ -91,6 +96,9 @@ export function createUserRoutes(db: UserDb) {
   // PATCH /users/:id — update user
   app.patch('/:id', async (c) => {
     const id = c.req.param('id');
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid user ID format' }, 400);
+    }
     const body = await c.req.json();
     const parsed = userUpdateSchema.safeParse(body);
     if (!parsed.success) {
@@ -109,9 +117,15 @@ export function createUserRoutes(db: UserDb) {
   // POST /users/:id/api-key — generate API key, store scrypt hash, return raw key once
   app.post('/:id/api-key', async (c) => {
     const id = c.req.param('id');
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid user ID format' }, 400);
+    }
     const user = await getUserById(db, id);
     if (!user) {
       return c.json({ error: 'User not found' }, 404);
+    }
+    if (user.type !== 'human_agent' && user.type !== 'ai_agent') {
+      return c.json({ error: 'API keys can only be generated for agent users' }, 403);
     }
 
     // Generate a cryptographically random API key
