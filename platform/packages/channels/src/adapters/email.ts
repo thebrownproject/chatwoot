@@ -258,7 +258,7 @@ function generateFallbackMessageId(): string {
  * Removes <script>, <iframe>, <object>, <embed>, <form>, <base>,
  * and any on* event handler attributes.
  */
-function sanitizeInboundHtml(html: string): string {
+export function sanitizeInboundHtml(html: string): string {
   // Remove dangerous tags and their content
   let sanitized = html.replace(
     /<\s*(script|iframe|object|embed|form|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
