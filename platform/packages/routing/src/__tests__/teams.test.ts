@@ -44,7 +44,7 @@ describe('teams CRUD', () => {
     expect(result).toBeNull();
   });
 
-  it('deletes a team', async () => {
+  it('deletes a team with no active rules', async () => {
     const db = createMockDb();
     const created = await createTeam(db, { name: 'To Delete' });
 
@@ -53,6 +53,22 @@ describe('teams CRUD', () => {
 
     const fetched = await getTeam(db, created.id);
     expect(fetched).toBeNull();
+  });
+
+  it('rejects deleting a team with active routing rules', async () => {
+    const db = createMockDb();
+    const team = await createTeam(db, { name: 'Active Team' });
+    await db.createRoutingRule({
+      name: 'Route to team',
+      priority: 1,
+      conditions: {},
+      action: 'assign_team',
+      targetType: 'team',
+      targetId: team.id,
+      active: true,
+    });
+
+    await expect(deleteTeam(db, team.id)).rejects.toThrow('active routing rule');
   });
 });
 
