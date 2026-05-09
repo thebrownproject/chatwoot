@@ -27,6 +27,7 @@ export {
   SNOOZE_JOB_NAME,
   SNOOZE_CRON,
   checkSnoozedConversations,
+  checkSnoozedConversationsDetailed,
   processSnoozeJob,
 } from './jobs/snooze-scheduler.js';
 
@@ -56,7 +57,7 @@ export type {
   RuleMatch,
   RoutingDb,
 } from './types.js';
-export type { SnoozeJobData } from './jobs/snooze-scheduler.js';
+export type { SnoozeJobData, SnoozeResult } from './jobs/snooze-scheduler.js';
 
 export {
   ruleConditionsSchema,

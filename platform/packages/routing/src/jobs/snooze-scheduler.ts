@@ -24,28 +24,47 @@ export interface SnoozeJobData {
  *
  * Returns the number of conversations reopened.
  */
+export interface SnoozeResult {
+  reopened: number;
+  failed: number;
+  errors: Array<{ conversationId: string; error: unknown }>;
+}
+
 export async function checkSnoozedConversations(db: RoutingDb): Promise<number> {
+  const result = await checkSnoozedConversationsDetailed(db);
+  return result.reopened;
+}
+
+export async function checkSnoozedConversationsDetailed(db: RoutingDb): Promise<SnoozeResult> {
   const due = await db.getSnoozedConversationsDue();
   let reopened = 0;
+  let failed = 0;
+  const errors: SnoozeResult['errors'] = [];
 
   for (const conversation of due) {
     try {
       await db.updateConversationStatus(conversation.id, 'open');
-      if (db.createConversationEvent) {
-        await db.createConversationEvent({
-          conversationId: conversation.id,
-          actorId: 'system',
-          eventType: 'reopened',
-          payload: { reason: 'snooze_expired', from: 'snoozed', to: 'open' },
-        });
-      }
       reopened++;
+      try {
+        if (db.createConversationEvent) {
+          await db.createConversationEvent({
+            conversationId: conversation.id,
+            actorId: 'system',
+            eventType: 'unsnoozed',
+            payload: { reason: 'snooze_expired', from: 'snoozed', to: 'open' },
+          });
+        }
+      } catch (eventErr) {
+        console.error(`Failed to create unsnoozed event for ${conversation.id}:`, eventErr);
+      }
     } catch (err) {
+      failed++;
+      errors.push({ conversationId: conversation.id, error: err });
       console.error(`Failed to unsnooze conversation ${conversation.id}:`, err);
     }
   }
 
-  return reopened;
+  return { reopened, failed, errors };
 }
 
 /**
@@ -68,7 +87,6 @@ export async function checkSnoozedConversations(db: RoutingDb): Promise<number> 
  * });
  * ```
  */
-export async function processSnoozeJob(db: RoutingDb): Promise<{ reopened: number }> {
-  const reopened = await checkSnoozedConversations(db);
-  return { reopened };
+export async function processSnoozeJob(db: RoutingDb): Promise<SnoozeResult> {
+  return checkSnoozedConversationsDetailed(db);
 }
