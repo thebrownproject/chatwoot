@@ -1,4 +1,4 @@
-import type { ModuleManifest } from './types.js';
+import type { ModuleManifest } from './types';
 
 const modules = new Map<string, ModuleManifest>();
 
