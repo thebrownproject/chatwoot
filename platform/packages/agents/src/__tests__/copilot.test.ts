@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createSuggestion,
+  generateSuggestion,
   acceptSuggestion,
   dismissSuggestion,
   listPendingSuggestions,
@@ -31,6 +32,62 @@ describe('createSuggestion', () => {
     expect(suggestion.confidence).toBe(0.85);
     expect(suggestion.reasoning).toBe('Common troubleshooting step');
     expect(suggestion.status).toBe('pending');
+  });
+
+  it('rejects confidence below 0', async () => {
+    await expect(
+      createSuggestion(db, {
+        conversationId: 'conv-1',
+        agentId: 'agent-1',
+        suggestedReply: 'Reply',
+        confidence: -0.1,
+        reasoning: 'test',
+      }),
+    ).rejects.toThrow('Confidence must be between 0 and 1');
+  });
+
+  it('rejects confidence above 1', async () => {
+    await expect(
+      createSuggestion(db, {
+        conversationId: 'conv-1',
+        agentId: 'agent-1',
+        suggestedReply: 'Reply',
+        confidence: 1.5,
+        reasoning: 'test',
+      }),
+    ).rejects.toThrow('Confidence must be between 0 and 1');
+  });
+
+  it('rejects empty suggested reply', async () => {
+    await expect(
+      createSuggestion(db, {
+        conversationId: 'conv-1',
+        agentId: 'agent-1',
+        suggestedReply: '',
+        confidence: 0.5,
+        reasoning: 'test',
+      }),
+    ).rejects.toThrow('Suggested reply must not be empty');
+  });
+
+  it('rejects whitespace-only suggested reply', async () => {
+    await expect(
+      createSuggestion(db, {
+        conversationId: 'conv-1',
+        agentId: 'agent-1',
+        suggestedReply: '   ',
+        confidence: 0.5,
+        reasoning: 'test',
+      }),
+    ).rejects.toThrow('Suggested reply must not be empty');
+  });
+});
+
+describe('generateSuggestion', () => {
+  it('throws not-yet-implemented error', async () => {
+    await expect(
+      generateSuggestion(db, 'agent-1', 'conv-1'),
+    ).rejects.toThrow('not yet implemented');
   });
 });
 

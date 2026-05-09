@@ -32,6 +32,14 @@ export async function createSuggestion(
   _db: DbClient,
   data: CreateSuggestionInput,
 ): Promise<CopilotSuggestion> {
+  if (data.confidence < 0 || data.confidence > 1) {
+    throw new Error('Confidence must be between 0 and 1');
+  }
+
+  if (!data.suggestedReply || data.suggestedReply.trim().length === 0) {
+    throw new Error('Suggested reply must not be empty');
+  }
+
   const suggestion: CopilotSuggestion = {
     id: crypto.randomUUID(),
     conversationId: data.conversationId,
@@ -53,17 +61,11 @@ export async function createSuggestion(
  * to produce a suggestion. For now it delegates to createSuggestion.
  */
 export async function generateSuggestion(
-  db: DbClient,
-  agentId: string,
-  conversationId: string,
+  _db: DbClient,
+  _agentId: string,
+  _conversationId: string,
 ): Promise<CopilotSuggestion> {
-  return createSuggestion(db, {
-    conversationId,
-    agentId,
-    suggestedReply: '',
-    confidence: 0,
-    reasoning: 'Generated via copilot — awaiting LLM integration',
-  });
+  throw new Error('generateSuggestion requires LLM integration — not yet implemented');
 }
 
 /**

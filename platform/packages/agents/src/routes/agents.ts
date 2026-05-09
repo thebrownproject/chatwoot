@@ -94,7 +94,7 @@ agentRoutes.post('/', async (c) => {
   }
 
   const agent = await registerAgent(db, parsed.data);
-  return c.json(agent, 201);
+  return c.json({ data: agent }, 201);
 });
 
 // ---------------------------------------------------------------------------
@@ -104,6 +104,10 @@ agentRoutes.post('/', async (c) => {
 agentRoutes.get('/:id', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
+
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: 'Invalid agent ID format' }, 400);
+  }
 
   const config = await getAgentConfig(db, id);
   if (!config) {
@@ -120,6 +124,11 @@ agentRoutes.get('/:id', async (c) => {
 agentRoutes.patch('/:id', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
+
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: 'Invalid agent ID format' }, 400);
+  }
+
   const body = await c.req.json();
   const parsed = updateAgentSchema.safeParse(body);
 
@@ -143,6 +152,11 @@ agentRoutes.post('/:id/process', async (c) => {
   const db = c.get('db');
   const handler = c.get('agentHandler');
   const agentId = c.req.param('id');
+
+  if (!z.string().uuid().safeParse(agentId).success) {
+    return c.json({ error: 'Invalid agent ID format' }, 400);
+  }
+
   const body = await c.req.json();
   const parsed = processMessageSchema.safeParse(body);
 

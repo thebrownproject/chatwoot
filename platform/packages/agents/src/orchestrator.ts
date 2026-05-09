@@ -105,6 +105,10 @@ export class AgentOrchestrator {
     const context = await this.buildContext(db, conversationId);
     const response = await this.handler(config, context);
 
+    if (!response.content || response.content.trim().length === 0) {
+      throw new Error('Agent response content must not be empty');
+    }
+
     await this.executeResponse(db, agentId, conversationId, response);
 
     return response;

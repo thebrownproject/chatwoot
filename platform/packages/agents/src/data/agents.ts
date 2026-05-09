@@ -32,13 +32,23 @@ export async function registerAgent(
   _db: DbClient,
   data: AgentConfigCreate,
 ): Promise<AgentConfig> {
+  const trimmedName = data.name.trim();
+  if (trimmedName.length === 0) {
+    throw new Error('Agent name must not be empty');
+  }
+
+  const trimmedInstructions = data.instructions.trim();
+  if (trimmedInstructions.length === 0) {
+    throw new Error('Agent instructions must not be empty');
+  }
+
   const id = generateId();
   const config: AgentConfig = {
     id,
-    name: data.name,
+    name: trimmedName,
     model: data.model,
     capabilities: data.capabilities,
-    instructions: data.instructions,
+    instructions: trimmedInstructions,
     tools: data.tools ?? [],
   };
 
@@ -76,10 +86,18 @@ export async function updateAgentConfig(
   const existing = store.get(agentId);
   if (!existing) return undefined;
 
-  if (data.name !== undefined) existing.name = data.name;
+  if (data.name !== undefined) {
+    const trimmed = data.name.trim();
+    if (trimmed.length === 0) throw new Error('Agent name must not be empty');
+    existing.name = trimmed;
+  }
   if (data.model !== undefined) existing.model = data.model;
   if (data.capabilities !== undefined) existing.capabilities = data.capabilities;
-  if (data.instructions !== undefined) existing.instructions = data.instructions;
+  if (data.instructions !== undefined) {
+    const trimmed = data.instructions.trim();
+    if (trimmed.length === 0) throw new Error('Agent instructions must not be empty');
+    existing.instructions = trimmed;
+  }
   if (data.tools !== undefined) existing.tools = data.tools;
 
   return existing;
