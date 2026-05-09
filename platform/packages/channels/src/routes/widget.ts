@@ -76,7 +76,8 @@ export function widgetRoutes(store: WidgetStore): Hono {
         senderType: 'contact',
         createdAt: new Date().toISOString(),
       };
-      store.messages.get(id)!.push(msg);
+      const messages = store.messages.get(id);
+      if (messages) messages.push(msg);
     }
 
     return c.json(conversation, 201);

@@ -219,6 +219,7 @@ describe('required columns', () => {
     expect(cols.metadata).toBeDefined();
     expect(cols.clerkId).toBeDefined();
     expect(cols.apiKeyHash).toBeDefined();
+    expect(cols.apiKeyLookupHash).toBeDefined();
     expect(cols.createdAt).toBeDefined();
     expect(cols.updatedAt).toBeDefined();
 
@@ -294,7 +295,23 @@ describe('required columns', () => {
     const cols = getTableColumns(schema.teams);
     expect(cols.id).toBeDefined();
     expect(cols.name).toBeDefined();
+    expect(cols.createdAt).toBeDefined();
+    expect(cols.updatedAt).toBeDefined();
     expect(cols.name.notNull).toBe(true);
+    expect(cols.createdAt.notNull).toBe(true);
+    expect(cols.updatedAt.notNull).toBe(true);
+  });
+
+  it('teamMembers table has required columns', () => {
+    const cols = getTableColumns(schema.teamMembers);
+    expect(cols.teamId).toBeDefined();
+    expect(cols.userId).toBeDefined();
+    expect(cols.role).toBeDefined();
+    expect(cols.createdAt).toBeDefined();
+    expect(cols.teamId.notNull).toBe(true);
+    expect(cols.userId.notNull).toBe(true);
+    expect(cols.role.notNull).toBe(true);
+    expect(cols.createdAt.notNull).toBe(true);
   });
 });
 
@@ -409,6 +426,12 @@ describe('indexes', () => {
     expect(indexNames).toContain('idx_users_email');
     expect(indexNames).toContain('idx_users_clerk_id');
     expect(indexNames).toContain('idx_users_type');
+  });
+
+  it('permissions table enforces one permission record per user', () => {
+    const config = getTableConfig(schema.permissions);
+    const indexNames = config.indexes.map((i) => i.config.name);
+    expect(indexNames).toContain('idx_permissions_user_id');
   });
 
   it('conversations table has indexes', () => {

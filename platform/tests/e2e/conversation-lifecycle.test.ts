@@ -31,9 +31,7 @@ describe('Conversation lifecycle', () => {
     expect(conv.channelOrigin).toBe('web_chat');
 
     // 3. Assign agent
-    const updated = await p.conversations.update(p.db, conv.id, {
-      assigneeId: agent.id,
-    });
+    const updated = await p.conversations.assign(p.db, conv.id, agent.id, agent.id);
 
     expect(updated?.assigneeId).toBe(agent.id);
 

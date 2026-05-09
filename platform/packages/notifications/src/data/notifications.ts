@@ -28,7 +28,9 @@ export async function createNotification(
     [id, data.userId, data.type, data.title, data.body, data.conversationId ?? null, now, now],
   );
 
-  return rows[0]!;
+  const notification = rows[0];
+  if (!notification) throw new Error('Failed to create notification');
+  return notification;
 }
 
 export async function listNotifications(

@@ -114,7 +114,6 @@ export async function getSlaStats(
   if (period?.to) {
     conditions.push(`c.created_at <= $${paramIdx}`);
     params.push(period.to);
-    paramIdx++;
   }
 
   const whereClause = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';

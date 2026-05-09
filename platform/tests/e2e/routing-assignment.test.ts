@@ -336,9 +336,7 @@ describe('Routing and assignment', () => {
 
       expect(conv.assigneeId).toBe(agent1.id);
 
-      const updated = await p.conversations.update(p.db, conv.id, {
-        assigneeId: agent2.id,
-      });
+      const updated = await p.conversations.assign(p.db, conv.id, agent2.id, agent1.id);
 
       expect(updated?.assigneeId).toBe(agent2.id);
     });
@@ -351,9 +349,7 @@ describe('Routing and assignment', () => {
         assigneeId: agent.id,
       });
 
-      const unassigned = await p.conversations.update(p.db, conv.id, {
-        assigneeId: null,
-      });
+      const unassigned = await p.conversations.unassign(p.db, conv.id, agent.id);
 
       expect(unassigned?.assigneeId).toBeNull();
     });

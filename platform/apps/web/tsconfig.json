@@ -20,7 +20,9 @@
       ]
     },
     "incremental": true,
-    "allowJs": true
+    "allowJs": true,
+    "noEmit": true,
+    "resolveJsonModule": true
   },
   "include": [
     "src/**/*.ts",

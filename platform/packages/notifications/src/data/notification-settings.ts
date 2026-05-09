@@ -51,23 +51,26 @@ export async function updateSettings(
   // Upsert: insert or update on conflict
   const rows = await db.query<NotificationSettings>(
     `INSERT INTO notification_settings (id, user_id, email_enabled, push_enabled, settings, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     VALUES ($1, $2, COALESCE($3, true), COALESCE($4, true), COALESCE($5::jsonb, $8::jsonb), $6, $7)
      ON CONFLICT (user_id) DO UPDATE SET
        email_enabled = COALESCE($3, notification_settings.email_enabled),
        push_enabled = COALESCE($4, notification_settings.push_enabled),
-       settings = COALESCE($5, notification_settings.settings),
+       settings = COALESCE($5::jsonb, notification_settings.settings),
        updated_at = $7
      RETURNING id, user_id AS "userId", email_enabled AS "emailEnabled", push_enabled AS "pushEnabled", settings`,
     [
       crypto.randomUUID(),
       userId,
-      data.emailEnabled ?? true,
-      data.pushEnabled ?? true,
-      JSON.stringify(data.settings ?? DEFAULT_TYPE_SETTINGS),
+      data.emailEnabled ?? null,
+      data.pushEnabled ?? null,
+      data.settings ? JSON.stringify(data.settings) : null,
       now,
       now,
+      JSON.stringify(DEFAULT_TYPE_SETTINGS),
     ],
   );
 
-  return rows[0]!;
+  const settings = rows[0];
+  if (!settings) throw new Error('Failed to update notification settings');
+  return settings;
 }

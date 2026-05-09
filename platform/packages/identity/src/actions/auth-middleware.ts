@@ -1,6 +1,6 @@
 import { timingSafeEqual, scryptSync } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
-import type { User, AuthContext } from '../types.js';
+import type { AuthContext } from '../types.js';
 import type { UserDb } from '../data/users.js';
 
 /**

@@ -4,9 +4,11 @@ import {
   pgTable,
   primaryKey,
   text,
+  timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
 
+import { tz } from './column-helpers.js';
 import { users } from './users.js';
 
 export const teamMemberRoleEnum = pgEnum('team_member_role', [
@@ -22,6 +24,11 @@ export const teams = pgTable('teams', {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
+  createdAt: timestamp('created_at', tz).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', tz)
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const teamsRelations = relations(teams, ({ many }) => ({
@@ -38,6 +45,7 @@ export const teamMembers = pgTable(
       .notNull()
       .references(() => users.id),
     role: teamMemberRoleEnum('role').notNull().default('member'),
+    createdAt: timestamp('created_at', tz).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.teamId, table.userId] })],
 );

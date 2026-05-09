@@ -9,6 +9,7 @@ export {
   updateConversation,
   resolveConversation,
   reopenConversation,
+  pendConversation,
   snoozeConversation,
   unsnoozeConversation,
   getConversationEvents,

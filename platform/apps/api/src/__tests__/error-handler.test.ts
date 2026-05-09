@@ -21,6 +21,9 @@ function createTestApp() {
   app.get('/unknown', () => {
     throw new Error('Something broke');
   });
+  app.get('/foreign-key', () => {
+    throw Object.assign(new Error('violates foreign key constraint'), { code: '23503' });
+  });
   app.onError(errorHandler);
   return app;
 }
@@ -54,5 +57,12 @@ describe('error handler', () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body).toEqual({ error: 'Internal server error', status: 500 });
+  });
+
+  it('returns 404 for foreign key violations without leaking database internals', async () => {
+    const res = await app.request('/foreign-key');
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Related record not found', status: 404 });
   });
 });

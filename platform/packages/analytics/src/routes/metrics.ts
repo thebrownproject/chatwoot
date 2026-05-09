@@ -45,7 +45,7 @@ export function createAnalyticsRoutes() {
           slaComplianceRate: sla.complianceRate,
         },
       });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch overview metrics' }, 500);
     }
   });
@@ -58,7 +58,7 @@ export function createAnalyticsRoutes() {
       const status = c.req.query('status');
       const metrics = await getConversationMetrics(db, { ...dateRange, channel, status });
       return c.json({ data: metrics });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch conversation metrics' }, 500);
     }
   });
@@ -75,7 +75,7 @@ export function createAnalyticsRoutes() {
         agentRows.map((row) => getAgentMetrics(db, row.assignee_id, dateRange)),
       );
       return c.json({ data: agentMetrics });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch agent metrics' }, 500);
     }
   });
@@ -87,7 +87,7 @@ export function createAnalyticsRoutes() {
       const dateRange = parseDateRange(c);
       const metrics = await getAgentMetrics(db, agentId, dateRange);
       return c.json({ data: metrics });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch agent metrics' }, 500);
     }
   });
@@ -101,7 +101,7 @@ export function createAnalyticsRoutes() {
         teamRows.map((row) => getTeamMetrics(db, row.id, dateRange)),
       );
       return c.json({ data: teamMetrics });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch team metrics' }, 500);
     }
   });
@@ -112,7 +112,7 @@ export function createAnalyticsRoutes() {
       const dateRange = parseDateRange(c);
       const metrics = await getChannelMetrics(db, dateRange);
       return c.json({ data: metrics });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch channel metrics' }, 500);
     }
   });
@@ -123,7 +123,7 @@ export function createAnalyticsRoutes() {
       const dateRange = parseDateRange(c);
       const stats = await getSlaStats(db, dateRange);
       return c.json({ data: stats });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch SLA stats' }, 500);
     }
   });
@@ -133,7 +133,7 @@ export function createAnalyticsRoutes() {
       const db = c.get('db');
       const breaches = await checkSlaBreaches(db);
       return c.json({ data: breaches });
-    } catch (err) {
+    } catch {
       return c.json({ error: 'Failed to fetch SLA breaches' }, 500);
     }
   });

@@ -102,8 +102,8 @@ describe('Multi-channel conversations', () => {
     const emailConv = await p.conversations.create(p.db, { channelOrigin: 'email' });
     const chatConv = await p.conversations.create(p.db, { channelOrigin: 'web_chat' });
 
-    await p.conversations.update(p.db, emailConv.id, { assigneeId: agent.id });
-    await p.conversations.update(p.db, chatConv.id, { assigneeId: agent.id });
+    await p.conversations.assign(p.db, emailConv.id, agent.id, agent.id);
+    await p.conversations.assign(p.db, chatConv.id, agent.id, agent.id);
 
     // Both conversations assigned to same agent
     const assigned = await p.conversations.list(p.db, { assigneeId: agent.id });

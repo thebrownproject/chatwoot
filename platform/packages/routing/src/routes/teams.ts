@@ -47,6 +47,13 @@ export function teamsRoutes(db: RoutingDb) {
     return c.json({ ...team, members });
   });
 
+  /** GET /teams/:id/members — list team members */
+  app.get('/:id/members', async (c) => {
+    const teamId = c.req.param('id');
+    const members = await getTeamMembers(c.var.db, teamId);
+    return c.json({ data: members });
+  });
+
   /** POST /teams/:id/members — add a member to a team */
   app.post('/:id/members', async (c) => {
     const teamId = c.req.param('id');

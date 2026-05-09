@@ -30,19 +30,7 @@ export function AssigneeSelector({
                   {initials(currentAssignee.name)}
                 </div>
                 <span className="flex-1 text-left">{currentAssignee.name}</span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Unassign"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAssign(null);
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onAssign(null); } }}
-                  className="rounded p-0.5 hover:bg-slate-200 cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5 text-slate-400" />
-                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
               </>
             ) : (
               <>
@@ -83,6 +71,17 @@ export function AssigneeSelector({
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
+
+      {currentAssignee && (
+        <button
+          aria-label="Unassign"
+          onClick={() => onAssign(null)}
+          className="mt-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+        >
+          <X className="h-3 w-3" />
+          Unassign
+        </button>
+      )}
     </div>
   );
 }

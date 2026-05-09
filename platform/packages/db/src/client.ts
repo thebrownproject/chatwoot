@@ -1,14 +1,14 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 
 import * as schema from './schema/index.js';
 
-export type Db = NeonHttpDatabase<typeof schema>;
+export type Db = PostgresJsDatabase<typeof schema>;
 /** @deprecated Use Db */
 export type Database = Db;
 
 export const createDb = (url: string): Db => {
-  const client = neon(url);
+  const client = postgres(url, { prepare: false });
   return drizzle(client, { schema });
 };
 

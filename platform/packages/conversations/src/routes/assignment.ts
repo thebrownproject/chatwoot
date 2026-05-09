@@ -13,6 +13,15 @@ function errorStatus(message: string): 404 | 409 | 500 {
   return 500;
 }
 
+function isForeignKeyViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === '23503'
+  );
+}
+
 assignmentRoutes.post('/conversations/:id/assign', async (c) => {
   const db = c.get('db');
   const actorId = c.get('actorId');
@@ -28,6 +37,10 @@ assignmentRoutes.post('/conversations/:id/assign', async (c) => {
     await assignment.assignConversation(db, conversationId, parsed.data.assigneeId, actorId);
     return c.json({ ok: true });
   } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      return c.json({ error: 'Assignee not found' }, 404);
+    }
+
     const message = err instanceof Error ? err.message : 'Unknown error';
     return c.json({ error: message }, errorStatus(message));
   }

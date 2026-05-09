@@ -32,9 +32,30 @@ export class NotFoundError extends HttpError {
   }
 }
 
+function isJsonParseError(err: Error): boolean {
+  return err instanceof SyntaxError && /\bJSON\b/.test(err.message);
+}
+
+function isForeignKeyViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === '23503'
+  );
+}
+
 export const errorHandler: ErrorHandler = (err, c) => {
   if (err instanceof HttpError) {
     return c.json({ error: err.message, status: err.statusCode }, err.statusCode);
+  }
+
+  if (isJsonParseError(err)) {
+    return c.json({ error: 'Invalid JSON request body', status: 400 }, 400);
+  }
+
+  if (isForeignKeyViolation(err)) {
+    return c.json({ error: 'Related record not found', status: 404 }, 404);
   }
 
   console.error('Unhandled error:', err);

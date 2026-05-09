@@ -17,6 +17,10 @@ import {
   getConversationEvents,
   _resetStore as resetConversationStore,
 } from '../../packages/conversations/src/data/conversations.js';
+import {
+  assignConversation,
+  unassignConversation,
+} from '../../packages/conversations/src/data/assignment.js';
 import { validateTransition, allowedTransitions } from '../../packages/conversations/src/data/status-machine.js';
 
 import {
@@ -85,6 +89,9 @@ import {
 } from '../../packages/routing/src/engine/assigner.js';
 
 import type { Conversation, ConversationCreate, DbClient } from '../../packages/conversations/src/types.js';
+import type { Db as ConversationDb } from '../../packages/conversations/src/data/db.js';
+import type { ConversationEvent, ConversationEventCreate, EventType } from '../../packages/conversations/src/types/events.js';
+import type { ConversationParticipant, ParticipantRole, ParticipantWithUser } from '../../packages/conversations/src/types/participants.js';
 import type { AgentConfig, AgentConfigCreate, CopilotSuggestion, HandoffRequest } from '../../packages/agents/src/types.js';
 import type { RoutableConversation, RoutingRule, RoutingDb } from '../../packages/routing/src/types.js';
 import type { PortalRecord, CategoryRecord, ArticleRecord } from '../../packages/knowledge-base/src/types.js';
@@ -97,6 +104,122 @@ export function createStubDb(): DbClient {
   return {
     query: null,
     execute: async () => ({}),
+  };
+}
+
+function createConversationAssignmentDb(db: DbClient): ConversationDb {
+  const participants: ConversationParticipant[] = [];
+  const events: ConversationEvent[] = [];
+
+  return {
+    participants: {
+      async add(conversationId, userId, role) {
+        const participant: ConversationParticipant = {
+          id: crypto.randomUUID(),
+          conversationId,
+          userId,
+          role,
+          joinedAt: new Date(),
+          leftAt: null,
+        };
+        participants.push(participant);
+        return participant;
+      },
+      async remove(conversationId, userId) {
+        const participant = participants.find(
+          (p) => p.conversationId === conversationId && p.userId === userId && p.leftAt === null,
+        );
+        if (participant) participant.leftAt = new Date();
+      },
+      async list(conversationId): Promise<ParticipantWithUser[]> {
+        return participants
+          .filter((p) => p.conversationId === conversationId && p.leftAt === null)
+          .map((p) => ({
+            ...p,
+            user: getTestUser(p.userId) ?? {
+              id: p.userId,
+              name: 'Unknown',
+              email: null,
+              type: 'human_agent',
+            },
+          }));
+      },
+      async getRole(conversationId, userId): Promise<ParticipantRole | null> {
+        return participants.find(
+          (p) => p.conversationId === conversationId && p.userId === userId && p.leftAt === null,
+        )?.role ?? null;
+      },
+      async updateRole(conversationId, userId, role) {
+        const participant = participants.find(
+          (p) => p.conversationId === conversationId && p.userId === userId && p.leftAt === null,
+        );
+        if (participant) participant.role = role;
+      },
+      async exists(conversationId, userId) {
+        return participants.some(
+          (p) => p.conversationId === conversationId && p.userId === userId && p.leftAt === null,
+        );
+      },
+    },
+    conversations: {
+      async setAssignee(conversationId, assigneeId) {
+        const conversation = await getConversationById(db, conversationId);
+        if (!conversation) throw new Error(`Conversation ${conversationId} not found`);
+
+        conversation.assigneeId = assigneeId;
+        conversation.updatedAt = new Date();
+      },
+      async getAssignee(conversationId) {
+        const conversation = await getConversationById(db, conversationId);
+        if (!conversation?.assigneeId) return null;
+
+        const user = getTestUser(conversation.assigneeId);
+        return user
+          ? { id: user.id, name: user.name, email: user.email ?? null, type: user.type }
+          : null;
+      },
+      async listAssigned(userId, filters) {
+        const result = await listConversations(db, {
+          status: filters?.status,
+          priority: filters?.priority,
+          assigneeId: userId,
+          limit: filters?.limit,
+          offset: filters?.offset,
+        });
+        return result.data;
+      },
+      async listUnassigned(filters) {
+        const result = await listConversations(db, {
+          status: filters?.status,
+          priority: filters?.priority,
+          limit: filters?.limit,
+          offset: filters?.offset,
+        });
+        return result.data.filter((conversation) => conversation.assigneeId === null);
+      },
+    },
+    events: {
+      async create(data: ConversationEventCreate): Promise<ConversationEvent> {
+        const event: ConversationEvent = {
+          id: crypto.randomUUID(),
+          conversationId: data.conversationId,
+          actorId: data.actorId,
+          eventType: data.eventType,
+          payload: data.payload ?? {},
+          createdAt: new Date(),
+        };
+        events.push(event);
+        return event;
+      },
+      async list(conversationId) {
+        return events.filter((event) => event.conversationId === conversationId);
+      },
+      async listByType(conversationId, eventType: EventType) {
+        return events.filter(
+          (event) => event.conversationId === conversationId && event.eventType === eventType,
+        );
+      },
+    },
   };
 }
 
@@ -351,6 +474,17 @@ export interface Platform {
     getById: typeof getConversationById;
     list: typeof listConversations;
     update: typeof updateConversation;
+    assign: (
+      db: DbClient,
+      conversationId: string,
+      assigneeId: string,
+      actorId: string,
+    ) => Promise<Conversation | undefined>;
+    unassign: (
+      db: DbClient,
+      conversationId: string,
+      actorId: string,
+    ) => Promise<Conversation | undefined>;
     resolve: typeof resolveConversation;
     reopen: typeof reopenConversation;
     snooze: typeof snoozeConversation;
@@ -459,6 +593,7 @@ export function createPlatform(): Platform {
   settingsStore.clear();
 
   const db = createStubDb();
+  const conversationAssignmentDb = createConversationAssignmentDb(db);
   const routingDb = createRoutingDb();
 
   return {
@@ -470,6 +605,14 @@ export function createPlatform(): Platform {
       getById: getConversationById,
       list: listConversations,
       update: updateConversation,
+      assign: async (db, conversationId, assigneeId, actorId) => {
+        await assignConversation(conversationAssignmentDb, conversationId, assigneeId, actorId);
+        return getConversationById(db, conversationId);
+      },
+      unassign: async (db, conversationId, actorId) => {
+        await unassignConversation(conversationAssignmentDb, conversationId, actorId);
+        return getConversationById(db, conversationId);
+      },
       resolve: resolveConversation,
       reopen: reopenConversation,
       snooze: snoozeConversation,
