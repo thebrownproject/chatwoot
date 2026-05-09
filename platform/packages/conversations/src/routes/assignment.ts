@@ -68,7 +68,7 @@ assignmentRoutes.get('/conversations/assigned/:userId', async (c) => {
   const filters = parsed.success ? parsed.data : {};
 
   const conversations = await assignment.getAssignedConversations(db, userId, filters);
-  return c.json(conversations);
+  return c.json({ data: conversations });
 });
 
 assignmentRoutes.get('/conversations/unassigned', async (c) => {
@@ -78,5 +78,5 @@ assignmentRoutes.get('/conversations/unassigned', async (c) => {
   const filters = parsed.success ? parsed.data : {};
 
   const conversations = await assignment.getUnassignedConversations(db, filters);
-  return c.json(conversations);
+  return c.json({ data: conversations });
 });

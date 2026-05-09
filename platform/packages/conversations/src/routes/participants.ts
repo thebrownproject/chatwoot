@@ -64,6 +64,9 @@ participantsRoutes.delete('/conversations/:id/participants/:userId', async (c) =
     return c.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    if (message.includes('Cannot remove the contact')) {
+      return c.json({ error: message }, 403);
+    }
     return c.json({ error: message }, 404);
   }
 });
@@ -85,6 +88,9 @@ participantsRoutes.patch('/conversations/:id/participants/:userId', async (c) =>
     return c.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    if (message.includes('Cannot change the role')) {
+      return c.json({ error: message }, 403);
+    }
     return c.json({ error: message }, 404);
   }
 });
