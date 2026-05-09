@@ -13,6 +13,7 @@ import {
   getPortalById,
   listPortals,
   updatePortal,
+  deletePortal,
 } from '../data/portals.js';
 
 // ---------------------------------------------------------------------------
@@ -93,6 +94,16 @@ export function createPortalRoutes(db: unknown): Hono {
       const message = err instanceof Error ? err.message : 'Unknown error';
       return c.json({ error: message }, 409);
     }
+  });
+
+  // DELETE /portals/:id — delete a portal
+  app.delete('/:id', (c) => {
+    const id = c.req.param('id');
+    const deleted = deletePortal(db, id);
+    if (!deleted) {
+      return c.json({ error: 'Portal not found' }, 404);
+    }
+    return c.json({ data: { deleted: true } });
   });
 
   return app;

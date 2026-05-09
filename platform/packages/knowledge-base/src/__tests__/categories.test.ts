@@ -144,6 +144,128 @@ describe('Category data access', () => {
     expect(cats[1]!.name).toBe('A');
     expect(cats[1]!.position).toBe(10);
   });
+
+  // --- New tests for fixes ---
+
+  it('rejects whitespace-only name', () => {
+    expect(() =>
+      createCategory(db, { portalId: 'p1', name: '   ', slug: 'test' }),
+    ).toThrow('Category name cannot be empty');
+  });
+
+  it('rejects whitespace-only slug', () => {
+    expect(() =>
+      createCategory(db, { portalId: 'p1', name: 'Test', slug: '   ' }),
+    ).toThrow('Category slug cannot be empty');
+  });
+
+  it('trims name on create', () => {
+    const cat = createCategory(db, { portalId: 'p1', name: '  Trimmed  ', slug: 'trimmed' });
+    expect(cat.name).toBe('Trimmed');
+  });
+
+  it('normalizes slug to lowercase', () => {
+    const cat = createCategory(db, { portalId: 'p1', name: 'Test', slug: 'My-Slug' });
+    expect(cat.slug).toBe('my-slug');
+  });
+
+  it('enforces slug uniqueness within portal', () => {
+    createCategory(db, { portalId: 'p1', name: 'A', slug: 'test' });
+    expect(() =>
+      createCategory(db, { portalId: 'p1', name: 'B', slug: 'test' }),
+    ).toThrow('already exists in this portal');
+  });
+
+  it('allows same slug in different portals', () => {
+    createCategory(db, { portalId: 'p1', name: 'A', slug: 'test' });
+    const cat = createCategory(db, { portalId: 'p2', name: 'B', slug: 'test' });
+    expect(cat.slug).toBe('test');
+  });
+
+  it('enforces slug uniqueness on update', () => {
+    createCategory(db, { portalId: 'p1', name: 'A', slug: 'a' });
+    const b = createCategory(db, { portalId: 'p1', name: 'B', slug: 'b' });
+    expect(() => updateCategory(db, b.id, { slug: 'a' })).toThrow(
+      'already exists in this portal',
+    );
+  });
+
+  it('allows updating to same slug (no-op)', () => {
+    const cat = createCategory(db, { portalId: 'p1', name: 'A', slug: 'a' });
+    const updated = updateCategory(db, cat.id, { slug: 'a' });
+    expect(updated?.slug).toBe('a');
+  });
+
+  it('rejects nonexistent parent on create', () => {
+    expect(() =>
+      createCategory(db, { portalId: 'p1', name: 'Child', slug: 'child', parentCategoryId: 'nonexistent' }),
+    ).toThrow('Parent category not found');
+  });
+
+  it('rejects parent from different portal', () => {
+    const parent = createCategory(db, { portalId: 'p1', name: 'Parent', slug: 'parent' });
+    expect(() =>
+      createCategory(db, { portalId: 'p2', name: 'Child', slug: 'child', parentCategoryId: parent.id }),
+    ).toThrow('same portal');
+  });
+
+  it('enforces maximum nesting depth', () => {
+    let parentId: string | undefined;
+    for (let i = 0; i < 5; i++) {
+      const cat = createCategory(db, {
+        portalId: 'p1',
+        name: `Level ${i}`,
+        slug: `level-${i}`,
+        parentCategoryId: parentId,
+      });
+      parentId = cat.id;
+    }
+    expect(() =>
+      createCategory(db, {
+        portalId: 'p1',
+        name: 'Too Deep',
+        slug: 'too-deep',
+        parentCategoryId: parentId,
+      }),
+    ).toThrow('Maximum nesting depth');
+  });
+
+  it('enforces depth limit on update re-parenting', () => {
+    let parentId: string | undefined;
+    for (let i = 0; i < 5; i++) {
+      const cat = createCategory(db, {
+        portalId: 'p1',
+        name: `Level ${i}`,
+        slug: `level-${i}`,
+        parentCategoryId: parentId,
+      });
+      parentId = cat.id;
+    }
+    const orphan = createCategory(db, { portalId: 'p1', name: 'Orphan', slug: 'orphan' });
+    expect(() =>
+      updateCategory(db, orphan.id, { parentCategoryId: parentId }),
+    ).toThrow('Maximum nesting depth');
+  });
+
+  it('rejects whitespace-only name on update', () => {
+    const cat = createCategory(db, { portalId: 'p1', name: 'Test', slug: 'test' });
+    expect(() => updateCategory(db, cat.id, { name: '   ' })).toThrow(
+      'Category name cannot be empty',
+    );
+  });
+
+  it('returns unchanged category on empty update', () => {
+    const cat = createCategory(db, { portalId: 'p1', name: 'Test', slug: 'test' });
+    const result = updateCategory(db, cat.id, {});
+    expect(result?.updatedAt).toEqual(cat.updatedAt);
+  });
+
+  it('detects 3-node cycle A→B→C→A', () => {
+    const a = createCategory(db, { portalId: 'p1', name: 'A', slug: 'a' });
+    const b = createCategory(db, { portalId: 'p1', name: 'B', slug: 'b', parentCategoryId: a.id });
+    const c = createCategory(db, { portalId: 'p1', name: 'C', slug: 'c', parentCategoryId: b.id });
+    expect(() => updateCategory(db, a.id, { parentCategoryId: c.id })).toThrow('circular');
+  });
 });
 
 describe('Category routes', () => {
@@ -189,6 +311,28 @@ describe('Category routes', () => {
     expect(json.data.name).toBe('New');
   });
 
+  it('PATCH returns 409 for circular reference', async () => {
+    const a = createCategory(db, { portalId: 'p1', name: 'A', slug: 'a' });
+    const b = createCategory(db, { portalId: 'p1', name: 'B', slug: 'b', parentCategoryId: a.id });
+    const res = await app.request(`/categories/${a.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentCategoryId: b.id }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it('PATCH returns 409 for duplicate slug', async () => {
+    createCategory(db, { portalId: 'p1', name: 'A', slug: 'a' });
+    const b = createCategory(db, { portalId: 'p1', name: 'B', slug: 'b' });
+    const res = await app.request(`/categories/${b.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: 'a' }),
+    });
+    expect(res.status).toBe(409);
+  });
+
   it('DELETE removes a category', async () => {
     const cat = createCategory(db, { portalId: 'p1', name: 'Test', slug: 'test' });
     const res = await app.request(`/categories/${cat.id}`, { method: 'DELETE' });
@@ -199,6 +343,13 @@ describe('Category routes', () => {
   it('DELETE returns 404 for missing category', async () => {
     const res = await app.request('/categories/nonexistent', { method: 'DELETE' });
     expect(res.status).toBe(404);
+  });
+
+  it('DELETE returns 409 for category with children', async () => {
+    const parent = createCategory(db, { portalId: 'p1', name: 'Parent', slug: 'parent' });
+    createCategory(db, { portalId: 'p1', name: 'Child', slug: 'child', parentCategoryId: parent.id });
+    const res = await app.request(`/categories/${parent.id}`, { method: 'DELETE' });
+    expect(res.status).toBe(409);
   });
 
   it('POST /categories/reorder reorders categories', async () => {

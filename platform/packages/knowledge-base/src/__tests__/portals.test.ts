@@ -6,6 +6,7 @@ import {
   getPortalBySlug,
   listPortals,
   updatePortal,
+  deletePortal,
   clearPortalStore,
 } from '../data/portals.js';
 import { createPortalRoutes } from '../routes/portals.js';
@@ -50,6 +51,35 @@ describe('Portal data access', () => {
     );
   });
 
+  it('normalizes slug to lowercase', () => {
+    const portal = createPortal(db, { name: 'Test', slug: 'My-Portal' });
+    expect(portal.slug).toBe('my-portal');
+  });
+
+  it('rejects duplicate slug case-insensitively', () => {
+    createPortal(db, { name: 'First', slug: 'help' });
+    expect(() => createPortal(db, { name: 'Second', slug: 'HELP' })).toThrow(
+      'already exists',
+    );
+  });
+
+  it('rejects whitespace-only name', () => {
+    expect(() => createPortal(db, { name: '   ', slug: 'test' })).toThrow(
+      'Portal name cannot be empty',
+    );
+  });
+
+  it('rejects whitespace-only slug', () => {
+    expect(() => createPortal(db, { name: 'Test', slug: '   ' })).toThrow(
+      'Portal slug cannot be empty',
+    );
+  });
+
+  it('trims name on create', () => {
+    const portal = createPortal(db, { name: '  Help Center  ', slug: 'help' });
+    expect(portal.name).toBe('Help Center');
+  });
+
   it('gets a portal by id', () => {
     const created = createPortal(db, { name: 'Help Center', slug: 'help' });
     const found = getPortalById(db, created.id);
@@ -91,6 +121,36 @@ describe('Portal data access', () => {
 
   it('returns undefined when updating nonexistent portal', () => {
     expect(updatePortal(db, 'nonexistent', { name: 'X' })).toBeUndefined();
+  });
+
+  it('rejects whitespace-only name on update', () => {
+    const portal = createPortal(db, { name: 'Test', slug: 'test' });
+    expect(() => updatePortal(db, portal.id, { name: '   ' })).toThrow(
+      'Portal name cannot be empty',
+    );
+  });
+
+  it('rejects whitespace-only slug on update', () => {
+    const portal = createPortal(db, { name: 'Test', slug: 'test' });
+    expect(() => updatePortal(db, portal.id, { slug: '   ' })).toThrow(
+      'Portal slug cannot be empty',
+    );
+  });
+
+  it('returns unchanged portal on empty update', () => {
+    const portal = createPortal(db, { name: 'Test', slug: 'test' });
+    const result = updatePortal(db, portal.id, {});
+    expect(result?.updatedAt).toEqual(portal.updatedAt);
+  });
+
+  it('deletes a portal', () => {
+    const portal = createPortal(db, { name: 'Test', slug: 'test' });
+    expect(deletePortal(db, portal.id)).toBe(true);
+    expect(getPortalById(db, portal.id)).toBeUndefined();
+  });
+
+  it('returns false when deleting nonexistent portal', () => {
+    expect(deletePortal(db, 'nonexistent')).toBe(false);
   });
 });
 
@@ -165,5 +225,17 @@ describe('Portal routes', () => {
       body: JSON.stringify({ slug: 'a' }),
     });
     expect(res.status).toBe(409);
+  });
+
+  it('DELETE /portals/:id deletes a portal', async () => {
+    const portal = createPortal(db, { name: 'Help', slug: 'help' });
+    const res = await app.request(`/portals/${portal.id}`, { method: 'DELETE' });
+    expect(res.status).toBe(200);
+    expect(getPortalById(db, portal.id)).toBeUndefined();
+  });
+
+  it('DELETE /portals/:id returns 404 for missing portal', async () => {
+    const res = await app.request('/portals/nonexistent', { method: 'DELETE' });
+    expect(res.status).toBe(404);
   });
 });
