@@ -1,4 +1,4 @@
-import type { ConversationStatus, StatusTransition } from '../types.js';
+import type { ConversationEventType, ConversationStatus, StatusTransition } from '../types.js';
 
 /**
  * Valid state transitions for conversations.
@@ -60,7 +60,7 @@ export async function transitionConversation(deps: {
   onEvent: (event: {
     conversationId: string;
     actorId: string;
-    eventType: string;
+    eventType: ConversationEventType;
     payload: Record<string, unknown>;
   }) => Promise<void>;
 }): Promise<
@@ -77,12 +77,26 @@ export async function transitionConversation(deps: {
     };
   }
 
+  if (newStatus === 'snoozed' && !snoozedUntil) {
+    return {
+      ok: false,
+      error: 'snoozedUntil is required when transitioning to snoozed',
+    };
+  }
+
+  if (newStatus === 'snoozed' && snoozedUntil && snoozedUntil <= new Date()) {
+    return {
+      ok: false,
+      error: 'snoozedUntil must be in the future',
+    };
+  }
+
   const resolvedAt = newStatus === 'resolved' ? new Date() : null;
   const snoozeUntil = newStatus === 'snoozed' ? (snoozedUntil ?? null) : null;
 
   await onUpdate({ status: newStatus, resolvedAt, snoozedUntil: snoozeUntil });
 
-  const eventType = resolveEventType(newStatus);
+  const eventType = resolveEventType(currentStatus, newStatus);
   await onEvent({
     conversationId,
     actorId,
@@ -93,14 +107,17 @@ export async function transitionConversation(deps: {
   return { ok: true, transition: { from: currentStatus, to: newStatus } };
 }
 
-function resolveEventType(newStatus: ConversationStatus): string {
+function resolveEventType(
+  fromStatus: ConversationStatus,
+  newStatus: ConversationStatus,
+): ConversationEventType {
   switch (newStatus) {
     case 'resolved':
       return 'resolved';
     case 'snoozed':
       return 'snoozed';
     case 'open':
-      return 'reopened';
+      return fromStatus === 'snoozed' ? 'unsnoozed' : 'reopened';
     case 'pending':
       return 'status_changed';
   }

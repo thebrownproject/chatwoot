@@ -272,7 +272,7 @@ describe('reopenConversation', () => {
 describe('snoozeConversation', () => {
   it('snoozes an open conversation with until timestamp', async () => {
     const conv = await createConversation(db, { channelOrigin: 'email' });
-    const until = new Date('2026-05-10T09:00:00Z');
+    const until = new Date(Date.now() + 3_600_000);
 
     const result = await snoozeConversation(db, conv.id, 'agent-1', until);
     expect(result.ok).toBe(true);
@@ -284,7 +284,7 @@ describe('snoozeConversation', () => {
 
   it('creates a snoozed event', async () => {
     const conv = await createConversation(db, { channelOrigin: 'email' });
-    await snoozeConversation(db, conv.id, 'agent-1', new Date('2026-05-10T09:00:00Z'));
+    await snoozeConversation(db, conv.id, 'agent-1', new Date(Date.now() + 3_600_000));
 
     const events = await getConversationEvents(db, conv.id);
     const snoozeEvent = events.find((e) => e.eventType === 'snoozed');
@@ -314,7 +314,7 @@ describe('snoozeConversation', () => {
 describe('unsnoozeConversation', () => {
   it('unsnoozes a snoozed conversation', async () => {
     const conv = await createConversation(db, { channelOrigin: 'email' });
-    await snoozeConversation(db, conv.id, 'agent-1', new Date('2026-05-10T09:00:00Z'));
+    await snoozeConversation(db, conv.id, 'agent-1', new Date(Date.now() + 3_600_000));
 
     const result = await unsnoozeConversation(db, conv.id, 'system');
     expect(result.ok).toBe(true);
@@ -324,14 +324,14 @@ describe('unsnoozeConversation', () => {
     }
   });
 
-  it('creates an unsnoozed/reopened event', async () => {
+  it('creates an unsnoozed event', async () => {
     const conv = await createConversation(db, { channelOrigin: 'email' });
-    await snoozeConversation(db, conv.id, 'agent-1', new Date('2026-05-10T09:00:00Z'));
+    await snoozeConversation(db, conv.id, 'agent-1', new Date(Date.now() + 3_600_000));
     await unsnoozeConversation(db, conv.id, 'system');
 
     const events = await getConversationEvents(db, conv.id);
-    const reopenEvent = events.find((e) => e.eventType === 'reopened');
-    expect(reopenEvent).toBeDefined();
+    const unsnoozedEvent = events.find((e) => e.eventType === 'unsnoozed');
+    expect(unsnoozedEvent).toBeDefined();
   });
 
   it('rejects unsnoozing a non-snoozed conversation', async () => {
@@ -367,7 +367,7 @@ describe('full lifecycle', () => {
   it('open -> snoozed -> open (snooze expiry scenario)', async () => {
     const conv = await createConversation(db, { channelOrigin: 'email' });
 
-    await snoozeConversation(db, conv.id, 'agent-1', new Date('2026-05-10T09:00:00Z'));
+    await snoozeConversation(db, conv.id, 'agent-1', new Date(Date.now() + 3_600_000));
     const snoozed = await getConversationById(db, conv.id);
     expect(snoozed!.status).toBe('snoozed');
 
