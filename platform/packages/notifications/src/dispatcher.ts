@@ -38,6 +38,8 @@ function eventToNotificationType(eventType: string): NotificationType | null {
       return 'status_change';
     case 'escalated':
       return 'escalation';
+    case 'participant_joined':
+      return 'assignment';
     default:
       return null;
   }
@@ -113,8 +115,10 @@ async function resolveRecipients(
     case 'assignment': {
       const newAssignee = (event.payload as { assigneeId?: string }).assigneeId;
       const previousAssignee = (event.payload as { previousAssigneeId?: string }).previousAssigneeId;
+      const joinedUser = (event.payload as { userId?: string }).userId;
       if (newAssignee) recipients.add(newAssignee);
       if (previousAssignee) recipients.add(previousAssignee);
+      if (joinedUser) recipients.add(joinedUser);
       recipients.delete(event.actorId);
       break;
     }
