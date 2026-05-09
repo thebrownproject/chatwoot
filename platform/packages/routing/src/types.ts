@@ -125,7 +125,9 @@ export const routingRuleUpdateSchema = z.object({
 });
 
 export const teamCreateSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).refine((s) => s.trim().length > 0, {
+    message: 'Team name cannot be whitespace-only',
+  }),
 });
 
 export const teamMemberAddSchema = z.object({
