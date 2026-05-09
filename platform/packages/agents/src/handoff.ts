@@ -61,6 +61,9 @@ export async function requestHandoff(
   reason: string,
   toUserId?: string,
 ): Promise<HandoffRequest> {
+  if (toUserId && toUserId === fromAgentId) {
+    throw new Error('Cannot hand off to self');
+  }
   const handoff: HandoffRequest = {
     id: crypto.randomUUID(),
     fromAgentId,
@@ -137,6 +140,9 @@ export async function handoffAgentToAgent(
   toAgentId: string,
   reason: string,
 ): Promise<HandoffRequest> {
+  if (fromAgentId === toAgentId) {
+    throw new Error('Cannot hand off to self');
+  }
   const handoff: HandoffRequest = {
     id: crypto.randomUUID(),
     fromAgentId,
