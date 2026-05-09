@@ -75,4 +75,23 @@ describe('updateSettings', () => {
     expect(result.emailEnabled).toBe(true);
     expect(result.pushEnabled).toBe(true);
   });
+
+  it('passes null for omitted fields so existing settings are preserved on conflict', async () => {
+    const returned = {
+      id: 's-1',
+      userId: 'u-1',
+      emailEnabled: false,
+      pushEnabled: false,
+      settings: { new_message: false, assignment: true, mention: true, status_change: true, escalation: true },
+    };
+    const query = vi.fn().mockResolvedValue([returned]);
+    const db = mockSettingsDb({ query });
+
+    await updateSettings(db, 'u-1', { settings: { assignment: false } });
+
+    const params = query.mock.calls[0]?.[1] as unknown[];
+    expect(params[2]).toBeNull();
+    expect(params[3]).toBeNull();
+    expect(params[4]).toBe(JSON.stringify({ assignment: false }));
+  });
 });

@@ -60,6 +60,7 @@ export interface User {
   metadata: UserMetadata | null;
   clerkId: string | null;
   apiKeyHash: string | null;
+  apiKeyLookupHash: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -80,11 +81,14 @@ export interface UserListFilters {
 }
 
 /** A user record with sensitive fields stripped for API responses */
-export type SafeUser = Omit<User, 'apiKeyHash' | 'clerkId'>;
+export type SafeUser = Omit<User, 'apiKeyHash' | 'apiKeyLookupHash' | 'clerkId'>;
 
 /** Strip sensitive fields from a user record before returning in API responses */
 export function sanitizeUser(user: User): SafeUser {
-  const { apiKeyHash: _apiKeyHash, clerkId: _clerkId, ...safe } = user;
+  const { apiKeyHash, apiKeyLookupHash, clerkId, ...safe } = user;
+  void apiKeyHash;
+  void apiKeyLookupHash;
+  void clerkId;
   return safe;
 }
 

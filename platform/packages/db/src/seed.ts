@@ -334,8 +334,10 @@ if (process.argv[1]?.match(/\/seed\.[tj]s$/)) {
     process.exit(1);
   }
   const db = createDb(url);
-  seed(db).catch((err) => {
-    console.error('Seed failed:', err);
-    process.exit(1);
-  });
+  seed(db)
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('Seed failed:', err);
+      process.exit(1);
+    });
 }

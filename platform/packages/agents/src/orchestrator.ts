@@ -1,13 +1,10 @@
 import type {
-  AgentConfig,
   AgentContext,
   AgentHandler,
   AgentResponse,
   ContextMessage,
   ContextParticipant,
-  CopilotSuggestion,
   DbClient,
-  HandoffRequest,
 } from './types.js';
 import { getAgentConfig } from './data/agents.js';
 import { createSuggestion } from './copilot.js';

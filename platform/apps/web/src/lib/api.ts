@@ -38,20 +38,20 @@ export const api = {
     list(params?: {
       status?: string;
       assigneeId?: string;
-      channel?: string;
-      labelId?: string;
-      search?: string;
-      page?: number;
+      channelOrigin?: string;
+      priority?: string;
+      limit?: number;
+      offset?: number;
     }) {
       const searchParams = new URLSearchParams();
       if (params?.status) searchParams.set('status', params.status);
-      if (params?.assigneeId) searchParams.set('assignee_id', params.assigneeId);
-      if (params?.channel) searchParams.set('channel', params.channel);
-      if (params?.labelId) searchParams.set('label_id', params.labelId);
-      if (params?.search) searchParams.set('search', params.search);
-      if (params?.page) searchParams.set('page', String(params.page));
+      if (params?.assigneeId) searchParams.set('assigneeId', params.assigneeId);
+      if (params?.channelOrigin) searchParams.set('channelOrigin', params.channelOrigin);
+      if (params?.priority) searchParams.set('priority', params.priority);
+      if (params?.limit) searchParams.set('limit', String(params.limit));
+      if (params?.offset) searchParams.set('offset', String(params.offset));
       const qs = searchParams.toString();
-      return request<{ data: Conversation[]; meta: { total: number; page: number } }>(
+      return request<{ data: { data: Conversation[]; total: number } }>(
         `/conversations${qs ? `?${qs}` : ''}`,
       );
     },
@@ -68,21 +68,26 @@ export const api = {
     },
 
     assign(id: string, assigneeId: string | null) {
-      return request<Conversation>(`/conversations/${id}/assign`, {
+      if (assigneeId === null) {
+        return request<{ ok: true }>(`/conversations/${id}/unassign`, {
+          method: 'POST',
+        });
+      }
+      return request<{ ok: true }>(`/conversations/${id}/assign`, {
         method: 'POST',
-        body: JSON.stringify({ assignee_id: assigneeId }),
+        body: JSON.stringify({ assigneeId }),
       });
     },
 
     addLabel(id: string, labelId: string) {
-      return request<void>(`/conversations/${id}/labels`, {
+      return request<unknown>(`/conversations/${id}/labels`, {
         method: 'POST',
-        body: JSON.stringify({ label_id: labelId }),
+        body: JSON.stringify({ labelId }),
       });
     },
 
     removeLabel(id: string, labelId: string) {
-      return request<void>(`/conversations/${id}/labels/${labelId}`, {
+      return request<unknown>(`/conversations/${id}/labels/${labelId}`, {
         method: 'DELETE',
       });
     },
@@ -94,7 +99,7 @@ export const api = {
     },
 
     create(conversationId: string, data: { body: string; visibility: 'public' | 'internal' }) {
-      return request<Message>(`/conversations/${conversationId}/messages`, {
+      return request<{ data: Message }>(`/conversations/${conversationId}/messages`, {
         method: 'POST',
         body: JSON.stringify(data),
       });

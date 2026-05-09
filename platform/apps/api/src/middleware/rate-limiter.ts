@@ -1,7 +1,7 @@
 /**
  * In-memory rate limiter middleware.
  *
- * 100 requests per minute per IP. Uses a sliding window approach with
+ * 100 requests per minute per IP in production. Uses a sliding window approach with
  * per-IP request timestamps. Production should use Redis for cross-process
  * consistency.
  */
@@ -15,7 +15,9 @@ interface RateLimitEntry {
 const store = new Map<string, RateLimitEntry>();
 
 const WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 100;
+const DEFAULT_MAX_REQUESTS = process.env.NODE_ENV === 'production' ? 100 : 1_000;
+const MAX_REQUESTS = Number(process.env.RATE_LIMIT_MAX_REQUESTS ?? DEFAULT_MAX_REQUESTS);
+const RATE_LIMIT_DISABLED = process.env.RATE_LIMIT_DISABLED === 'true';
 
 /** Prune entries older than the window. Called periodically to prevent memory leaks. */
 function prune(): void {
@@ -32,6 +34,11 @@ function prune(): void {
 setInterval(prune, 60_000).unref();
 
 export const rateLimiter: MiddlewareHandler = async (c, next) => {
+  if (RATE_LIMIT_DISABLED) {
+    await next();
+    return;
+  }
+
   // Extract IP from headers (Fly.io, Cloudflare, etc.) or fall back to 'unknown'
   const ip =
     c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??

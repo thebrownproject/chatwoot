@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync } from 'node:crypto';
+import { createHash, randomBytes, scryptSync } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { UserDb } from '../data/users.js';
@@ -53,10 +53,10 @@ export function createUserRoutes(db: UserDb) {
     const limit = limitParam ? parseInt(limitParam, 10) : undefined;
     const offset = offsetParam ? parseInt(offsetParam, 10) : undefined;
 
-    if (limitParam && (isNaN(limit!) || limit! < 0)) {
+    if (limitParam && (limit === undefined || !Number.isInteger(limit) || limit < 0)) {
       return c.json({ error: 'Invalid limit parameter' }, 400);
     }
-    if (offsetParam && (isNaN(offset!) || offset! < 0)) {
+    if (offsetParam && (offset === undefined || !Number.isInteger(offset) || offset < 0)) {
       return c.json({ error: 'Invalid offset parameter' }, 400);
     }
 
@@ -122,8 +122,12 @@ export function createUserRoutes(db: UserDb) {
     const derived = scryptSync(rawKey, salt, 64);
     const hash = `${salt.toString('hex')}:${derived.toString('hex')}`;
 
-    // Store the hash on the user record
-    await db.update(id, { apiKeyHash: hash } as never);
+    const lookupHash = createHash('sha256').update(rawKey).digest('hex');
+
+    await db.update(id, {
+      apiKeyHash: hash,
+      apiKeyLookupHash: lookupHash,
+    } as never);
 
     return c.json({ data: { api_key: rawKey } }, 201);
   });

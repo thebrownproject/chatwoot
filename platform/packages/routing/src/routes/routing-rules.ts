@@ -33,6 +33,9 @@ export function routingRulesRoutes(db: RoutingDb) {
     if (!parsed.success) {
       return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
     }
+    if (parsed.data.targetType === 'team' && !(await c.var.db.getTeam(parsed.data.targetId))) {
+      return c.json({ error: 'Target team not found' }, 404);
+    }
     const rule = await createRoutingRule(c.var.db, parsed.data);
     return c.json(rule, 201);
   });
@@ -45,8 +48,16 @@ export function routingRulesRoutes(db: RoutingDb) {
     if (!parsed.success) {
       return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
     }
+    const current = await c.var.db.getRoutingRule(id);
+    if (!current) return c.json({ error: 'Not found' }, 404);
+
+    const targetType = parsed.data.targetType ?? current.targetType;
+    const targetId = parsed.data.targetId ?? current.targetId;
+    if (targetType === 'team' && !(await c.var.db.getTeam(targetId))) {
+      return c.json({ error: 'Target team not found' }, 404);
+    }
+
     const rule = await updateRoutingRule(c.var.db, id, parsed.data);
-    if (!rule) return c.json({ error: 'Not found' }, 404);
     return c.json(rule);
   });
 

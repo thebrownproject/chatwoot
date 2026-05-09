@@ -37,7 +37,6 @@ export interface ConversationCreate {
 export interface ConversationUpdate {
   subject?: string;
   priority?: ConversationPriority;
-  assigneeId?: string | null;
   metadata?: Record<string, unknown>;
 }
 

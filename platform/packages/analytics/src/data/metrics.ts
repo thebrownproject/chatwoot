@@ -49,7 +49,6 @@ export async function getConversationMetrics(
   if (filters?.status) {
     conditions.push(`c.status = $${paramIdx}`);
     params.push(filters.status);
-    paramIdx++;
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -98,7 +97,18 @@ export async function getConversationMetrics(
     byChannel[row.channel] = row.count;
   }
 
-  const row = totals!;
+  const row = totals ?? {
+    total: 0,
+    open: 0,
+    pending: 0,
+    snoozed: 0,
+    resolved: 0,
+    avg_first_reply_ms: null,
+    avg_resolution_ms: null,
+    resolved_today: 0,
+    resolved_this_week: 0,
+    resolved_this_month: 0,
+  };
   return {
     total: row.total,
     byStatus: {

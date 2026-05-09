@@ -8,6 +8,7 @@ import {
   updateConversation,
   resolveConversation,
   reopenConversation,
+  pendConversation,
   snoozeConversation,
 } from '../data/conversations.js';
 import type { DbClient } from '../types.js';
@@ -31,7 +32,6 @@ const createConversationSchema = z.object({
 const updateConversationSchema = z.object({
   subject: z.string().optional(),
   priority: prioritySchema.optional(),
-  assigneeId: z.string().uuid().nullable().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 
@@ -47,6 +47,15 @@ const listFiltersSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
+
+function isForeignKeyViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === '23503'
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Route type — expects `db` in Hono env variables
@@ -128,8 +137,16 @@ conversationRoutes.post('/', async (c) => {
   }
 
   const actorId = c.get('actorId') ?? 'system';
-  const conversation = await createConversation(db, { ...parsed.data, actorId });
-  return c.json(conversation, 201);
+  try {
+    const conversation = await createConversation(db, { ...parsed.data, actorId });
+    return c.json(conversation, 201);
+  } catch (err) {
+    if (parsed.data.assigneeId && isForeignKeyViolation(err)) {
+      return c.json({ error: 'Assignee not found' }, 404);
+    }
+
+    throw err;
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -183,6 +200,24 @@ conversationRoutes.post('/:id/reopen', async (c) => {
   const actorId = c.get('actorId') ?? 'system';
 
   const result = await reopenConversation(db, id, actorId);
+  if (!result.ok) {
+    const status = result.error === 'Conversation not found' ? 404 : 422;
+    return c.json({ error: result.error }, status);
+  }
+
+  return c.json({ data: result.conversation });
+});
+
+// ---------------------------------------------------------------------------
+// POST /conversations/:id/pending — mark conversation pending
+// ---------------------------------------------------------------------------
+
+conversationRoutes.post('/:id/pending', async (c) => {
+  const db = c.get('db');
+  const id = c.req.param('id');
+  const actorId = c.get('actorId') ?? 'system';
+
+  const result = await pendConversation(db, id, actorId);
   if (!result.ok) {
     const status = result.error === 'Conversation not found' ? 404 : 422;
     return c.json({ error: result.error }, status);

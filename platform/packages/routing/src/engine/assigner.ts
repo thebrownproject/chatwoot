@@ -60,7 +60,7 @@ export async function roundRobin(
   const nextIndex = (clampedIndex + 1) % members.length;
   roundRobinIndex.set(teamId, nextIndex);
 
-  return members[nextIndex]!.userId;
+  return members[nextIndex]?.userId ?? null;
 }
 
 /** Reset round-robin state (for testing). */

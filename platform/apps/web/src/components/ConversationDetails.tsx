@@ -20,7 +20,7 @@ interface ConversationDetailsProps {
 const statusTransitions: Record<ConversationStatus, ConversationStatus[]> = {
   open: ['pending', 'snoozed', 'resolved'],
   pending: ['open', 'snoozed', 'resolved'],
-  snoozed: ['open', 'resolved'],
+  snoozed: ['open'],
   resolved: ['open'],
 };
 

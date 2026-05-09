@@ -19,10 +19,11 @@ if (
 const nextConfig = {
   transpilePackages: ['@buildpass/shell'],
   async rewrites() {
+    const apiProxyUrl = process.env.API_PROXY_URL ?? 'http://localhost:3001';
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/api/:path*',
+        destination: `${apiProxyUrl}/api/:path*`,
       },
     ];
   },

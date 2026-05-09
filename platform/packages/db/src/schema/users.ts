@@ -36,6 +36,7 @@ export const users = pgTable(
     metadata: jsonb('metadata').default({}),
     clerkId: text('clerk_id'),
     apiKeyHash: text('api_key_hash'),
+    apiKeyLookupHash: text('api_key_lookup_hash'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
@@ -47,6 +48,7 @@ export const users = pgTable(
   (table) => [
     index('idx_users_email').on(table.email),
     uniqueIndex('idx_users_clerk_id').on(table.clerkId),
+    uniqueIndex('idx_users_api_key_lookup_hash').on(table.apiKeyLookupHash),
     index('idx_users_type').on(table.type),
   ],
 );

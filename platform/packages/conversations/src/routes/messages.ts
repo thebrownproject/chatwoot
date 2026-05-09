@@ -6,6 +6,19 @@ import { numParam } from './shared.js';
 
 export const messageRoutes = new Hono<RouteEnv>();
 
+function foreignKeyConstraint(err: unknown): string | undefined {
+  if (typeof err !== 'object' || err === null || !('code' in err) || (err as { code?: string }).code !== '23503') {
+    return undefined;
+  }
+
+  const error = err as {
+    constraint_name?: string;
+    constraint?: string;
+    message?: string;
+  };
+  return error.constraint_name ?? error.constraint ?? error.message;
+}
+
 messageRoutes.get('/conversations/:id/messages', async (c) => {
   const db = c.get('db');
 
@@ -39,8 +52,20 @@ messageRoutes.post('/conversations/:id/messages', async (c) => {
     return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
-  const message = await createMessage(db, parsed.data);
-  return c.json({ data: message }, 201);
+  try {
+    const message = await createMessage(db, parsed.data);
+    return c.json({ data: message }, 201);
+  } catch (err) {
+    const constraint = foreignKeyConstraint(err);
+    if (constraint?.includes('conversation_id')) {
+      return c.json({ error: 'Conversation not found' }, 404);
+    }
+    if (constraint?.includes('sender_id')) {
+      return c.json({ error: 'Sender not found' }, 404);
+    }
+
+    throw err;
+  }
 });
 
 messageRoutes.get('/messages/search', async (c) => {

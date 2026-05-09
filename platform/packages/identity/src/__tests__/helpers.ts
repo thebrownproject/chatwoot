@@ -12,6 +12,7 @@ export function makeUser(overrides: Partial<User> = {}): User {
     metadata: null,
     clerkId: null,
     apiKeyHash: null,
+    apiKeyLookupHash: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     ...overrides,

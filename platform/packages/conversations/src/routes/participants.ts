@@ -7,6 +7,15 @@ export type ParticipantsEnv = { Variables: { db: Db } };
 
 export const participantsRoutes = new Hono<ParticipantsEnv>();
 
+function isForeignKeyViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === '23503'
+  );
+}
+
 /** GET /conversations/:id/participants — list active participants */
 participantsRoutes.get('/conversations/:id/participants', async (c) => {
   const db = c.get('db');
@@ -35,6 +44,10 @@ participantsRoutes.post('/conversations/:id/participants', async (c) => {
     );
     return c.json(participant, 201);
   } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      return c.json({ error: 'Conversation or user not found' }, 404);
+    }
+
     const message = err instanceof Error ? err.message : 'Unknown error';
     return c.json({ error: message }, 409);
   }
