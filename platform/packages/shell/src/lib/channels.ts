@@ -1,5 +1,5 @@
 import { Mail, Globe, Smartphone, Hash, Bot } from 'lucide-react';
-import type { ChannelType } from '../types';
+import type { ChannelType } from '../types.js';
 
 export const channelIcons: Record<ChannelType, typeof Mail> = {
   email: Mail,
