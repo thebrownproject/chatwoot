@@ -5,8 +5,9 @@ import type {
 } from '../types.js';
 
 /**
- * In-memory round-robin state per team.
- * NOTE: Production should use Redis for cross-process consistency.
+ * In-memory round-robin index per team, capped at {@link MAX_ROUND_ROBIN_ENTRIES}
+ * entries with FIFO eviction. Replace with Redis INCR for atomic cross-process
+ * rotation in multi-process deployment.
  */
 const roundRobinIndex = new Map<string, number>();
 const MAX_ROUND_ROBIN_ENTRIES = 10_000;

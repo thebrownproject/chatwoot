@@ -19,8 +19,8 @@ export {
 } from './data/teams.js';
 
 // Routing engine
-export { evaluate, matchConditions } from './engine/evaluator.js';
-export { executeAction, roundRobin, clearRoundRobinForTeam } from './engine/assigner.js';
+export { evaluate, matchConditions, clearKeywordCache } from './engine/evaluator.js';
+export { executeAction, roundRobin, clearRoundRobinForTeam, resetRoundRobin } from './engine/assigner.js';
 
 // Snooze scheduler
 export {

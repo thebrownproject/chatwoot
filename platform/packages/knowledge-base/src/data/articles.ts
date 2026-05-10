@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ArticleRecord, ArticleCreate, ArticleUpdate, ArticleStatus } from '../types.js';
 
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const store = new Map<string, ArticleRecord>();
 
 const VALID_TRANSITIONS: Record<ArticleStatus, ArticleStatus[]> = {

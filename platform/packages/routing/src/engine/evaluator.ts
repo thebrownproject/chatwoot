@@ -6,6 +6,11 @@ import type {
 } from '../types.js';
 
 const MAX_CACHE_SIZE = 1000;
+
+/**
+ * In-memory regex cache for keyword matching. Capped at {@link MAX_CACHE_SIZE} entries
+ * with FIFO eviction. Replace with Redis or a shared LRU cache for multi-process deployment.
+ */
 const keywordRegexCache = new Map<string, RegExp>();
 
 function getKeywordRegex(keyword: string): RegExp {
@@ -101,4 +106,9 @@ export function matchConditions(
   }
 
   return true;
+}
+
+/** Reset the keyword regex cache (for testing or cache invalidation). */
+export function clearKeywordCache(): void {
+  keywordRegexCache.clear();
 }

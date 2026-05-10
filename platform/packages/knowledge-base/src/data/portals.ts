@@ -9,9 +9,11 @@ import { randomUUID } from 'node:crypto';
 import type { PortalRecord, PortalCreate, PortalUpdate } from '../types.js';
 
 // ---------------------------------------------------------------------------
-// In-memory store (placeholder until db package provides Drizzle schema)
+// In-memory store. Replace with Drizzle queries against @buildpass/db.
+// Not multi-process safe -- each process would have its own copy.
 // ---------------------------------------------------------------------------
 
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const store = new Map<string, PortalRecord>();
 
 // ---------------------------------------------------------------------------

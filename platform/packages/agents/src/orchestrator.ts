@@ -11,7 +11,9 @@ import { createSuggestion } from './copilot.js';
 import { requestHandoff } from './handoff.js';
 
 // ---------------------------------------------------------------------------
-// In-memory stores for messages and conversations (stubs for dev/test)
+// In-memory stores for messages and conversations (stubs for dev/test).
+// Replace with Drizzle queries against @buildpass/db for production.
+// Not multi-process safe -- each process would have its own copy.
 // ---------------------------------------------------------------------------
 
 interface ConversationRecord {
@@ -39,9 +41,13 @@ interface ParticipantRecord {
   role: 'contact' | 'assignee' | 'observer' | 'copilot';
 }
 
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const conversations = new Map<string, ConversationRecord>();
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const messages = new Map<string, MessageRecord[]>();
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const participants = new Map<string, ParticipantRecord[]>();
+/** In-memory only. Replace with DB writes for multi-process deployment. */
 const events: Array<{
   conversationId: string;
   actorId: string;

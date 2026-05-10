@@ -1,9 +1,11 @@
 import type { CopilotSuggestion, DbClient } from './types.js';
 
 // ---------------------------------------------------------------------------
-// In-memory store (replaced by Message table queries in production)
+// In-memory store. Replace with Message table queries (Drizzle) in production.
+// Not multi-process safe -- each process would have its own copy.
 // ---------------------------------------------------------------------------
 
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const store = new Map<string, CopilotSuggestion>();
 
 /** Reset internal state (for tests only). */

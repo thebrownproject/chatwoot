@@ -16,7 +16,10 @@ import {
  * POST /widget/conversations/:id/messages      — send a message
  */
 
-/** Simple in-memory stores for MVP. Replace with db queries. */
+/**
+ * In-memory stores for MVP. Replace with DB queries for multi-process deployment.
+ * The store is injected via {@link widgetRoutes} to keep state testable and explicit.
+ */
 interface WidgetConversation {
   id: string;
   channelId: string;

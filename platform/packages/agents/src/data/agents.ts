@@ -6,9 +6,11 @@ import type {
 } from '../types.js';
 
 // ---------------------------------------------------------------------------
-// In-memory store (replaced by Drizzle queries against @buildpass/db)
+// In-memory store. Replace with Drizzle queries against @buildpass/db.
+// Not multi-process safe -- each process would have its own copy.
 // ---------------------------------------------------------------------------
 
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const store = new Map<string, AgentConfig>();
 
 function generateId(): string {
