@@ -10,6 +10,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+import { tz } from './column-helpers.js';
 import { permissions } from './permissions.js';
 import { conversationParticipants, conversations } from './conversations.js';
 import { messages } from './messages.js';
@@ -37,16 +38,16 @@ export const users = pgTable(
     clerkId: text('clerk_id'),
     apiKeyHash: text('api_key_hash'),
     apiKeyLookupHash: text('api_key_lookup_hash'),
-    createdAt: timestamp('created_at', { withTimezone: true })
+    createdAt: timestamp('created_at', tz)
       .notNull()
       .default(sql`now()`),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
+    updatedAt: timestamp('updated_at', tz)
       .notNull()
       .default(sql`now()`)
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('idx_users_email').on(table.email),
+    uniqueIndex('idx_users_email').on(table.email),
     uniqueIndex('idx_users_clerk_id').on(table.clerkId),
     uniqueIndex('idx_users_api_key_lookup_hash').on(table.apiKeyLookupHash),
     index('idx_users_type').on(table.type),

@@ -7,6 +7,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+import { tz } from './column-helpers.js';
 import { conversations } from './conversations.js';
 
 export const labels = pgTable('labels', {
@@ -15,7 +16,7 @@ export const labels = pgTable('labels', {
     .default(sql`gen_random_uuid()`),
   name: text('name').notNull().unique(),
   color: text('color'),
-  createdAt: timestamp('created_at', { withTimezone: true })
+  createdAt: timestamp('created_at', tz)
     .notNull()
     .default(sql`now()`),
 });
@@ -29,10 +30,10 @@ export const conversationLabels = pgTable(
   {
     conversationId: uuid('conversation_id')
       .notNull()
-      .references(() => conversations.id),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     labelId: uuid('label_id')
       .notNull()
-      .references(() => labels.id),
+      .references(() => labels.id, { onDelete: 'cascade' }),
   },
   (table) => [
     primaryKey({ columns: [table.conversationId, table.labelId] }),
