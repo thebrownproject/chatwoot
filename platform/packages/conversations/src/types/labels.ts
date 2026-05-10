@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const CreateLabelInput = z.object({
-  name: z.string().min(1).max(100),
+  name: z.string().min(1).max(100).refine((s) => s.trim().length > 0, { message: 'Label name cannot be whitespace only' }),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullish(),
 });
 export type CreateLabelInput = z.infer<typeof CreateLabelInput>;

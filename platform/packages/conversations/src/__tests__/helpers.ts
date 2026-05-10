@@ -3,6 +3,8 @@ import type { ParticipantRole, ConversationParticipant, ParticipantWithUser } fr
 import type { ConversationEvent, ConversationEventCreate } from '../types/events.js';
 import type { AssignedConversation, AssignedConversationsFilter, ConversationAssignee } from '../types/assignment.js';
 import type { Message, CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
+import type { Label, ConversationLabel } from '../types/labels.js';
+import type { CannedResponse } from '../types/canned-responses.js';
 
 /** Simple in-memory DB for unit tests. */
 export function createTestDb(): Db {
@@ -12,6 +14,13 @@ export function createTestDb(): Db {
   const conversationAssignees: Map<string, string | null> = new Map();
 
   const conversationStore: AssignedConversation[] = [];
+
+  // Labels
+  const labelStore: Label[] = [];
+  const conversationLabelStore: ConversationLabel[] = [];
+
+  // Canned responses
+  const cannedResponseStore: CannedResponse[] = [];
 
   let idCounter = 0;
   const nextId = () => {
@@ -180,6 +189,89 @@ export function createTestDb(): Db {
         const limit = input.limit ?? 20;
         const offset = input.offset ?? 0;
         return filtered.slice(offset, offset + limit);
+      },
+    },
+    labels: {
+      async create(name: string, color: string | null): Promise<Label> {
+        const label: Label = { id: nextId(), name, color, createdAt: new Date() };
+        labelStore.push(label);
+        return label;
+      },
+      async list(): Promise<Label[]> {
+        return [...labelStore].sort((a, b) => a.name.localeCompare(b.name));
+      },
+      async findByName(name: string): Promise<Label | undefined> {
+        const lower = name.toLowerCase();
+        return labelStore.find((l) => l.name.toLowerCase() === lower);
+      },
+      async addToConversation(conversationId: string, labelId: string): Promise<ConversationLabel> {
+        const existing = conversationLabelStore.find(
+          (cl) => cl.conversationId === conversationId && cl.labelId === labelId,
+        );
+        if (existing) return existing;
+        const cl: ConversationLabel = { conversationId, labelId };
+        conversationLabelStore.push(cl);
+        return cl;
+      },
+      async removeFromConversation(conversationId: string, labelId: string): Promise<void> {
+        const idx = conversationLabelStore.findIndex(
+          (cl) => cl.conversationId === conversationId && cl.labelId === labelId,
+        );
+        if (idx !== -1) conversationLabelStore.splice(idx, 1);
+      },
+      async getConversationLabels(conversationId: string): Promise<Label[]> {
+        const labelIds = conversationLabelStore
+          .filter((cl) => cl.conversationId === conversationId)
+          .map((cl) => cl.labelId);
+        return labelStore.filter((l) => labelIds.includes(l.id));
+      },
+      async getConversationsByLabel(labelId: string): Promise<string[]> {
+        return conversationLabelStore
+          .filter((cl) => cl.labelId === labelId)
+          .map((cl) => cl.conversationId);
+      },
+    },
+    cannedResponses: {
+      async create(input): Promise<CannedResponse> {
+        const cr: CannedResponse = {
+          id: nextId(),
+          title: input.title,
+          body: input.body,
+          bodyHtml: input.bodyHtml,
+          createdBy: input.createdBy,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        cannedResponseStore.push(cr);
+        return cr;
+      },
+      async getById(id: string): Promise<CannedResponse | undefined> {
+        return cannedResponseStore.find((cr) => cr.id === id);
+      },
+      async list(): Promise<CannedResponse[]> {
+        return [...cannedResponseStore].sort((a, b) => a.title.localeCompare(b.title));
+      },
+      async update(id, input): Promise<CannedResponse | undefined> {
+        const cr = cannedResponseStore.find((c) => c.id === id);
+        if (!cr) return undefined;
+        if (input.title !== undefined) cr.title = input.title;
+        if (input.body !== undefined) cr.body = input.body;
+        if (input.bodyHtml !== undefined) cr.bodyHtml = input.bodyHtml ?? null;
+        cr.updatedAt = new Date();
+        return { ...cr };
+      },
+      async delete(id: string): Promise<boolean> {
+        const idx = cannedResponseStore.findIndex((cr) => cr.id === id);
+        if (idx === -1) return false;
+        cannedResponseStore.splice(idx, 1);
+        return true;
+      },
+      async search(query: string, limit: number): Promise<CannedResponse[]> {
+        const lower = query.toLowerCase();
+        return cannedResponseStore
+          .filter((cr) => cr.title.toLowerCase().includes(lower))
+          .sort((a, b) => a.title.localeCompare(b.title))
+          .slice(0, limit);
       },
     },
   };

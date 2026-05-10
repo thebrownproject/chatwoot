@@ -12,10 +12,11 @@ import {
   deleteCannedResponse,
   searchCannedResponses,
 } from '../data/canned-responses.js';
-import type { RouteEnv } from './shared.js';
-import { numParam } from './shared.js';
+import type { Db } from '../data/db.js';
 
-export const cannedResponseRoutes = new Hono<RouteEnv>();
+type CannedResponseEnv = { Variables: { db: Db; actorId: string } };
+
+export const cannedResponseRoutes = new Hono<CannedResponseEnv>();
 
 cannedResponseRoutes.get('/canned-responses', async (c) => {
   const db = c.get('db');
@@ -26,9 +27,12 @@ cannedResponseRoutes.get('/canned-responses', async (c) => {
 cannedResponseRoutes.get('/canned-responses/search', async (c) => {
   const db = c.get('db');
 
+  const limitRaw = c.req.query('limit');
+  const limitNum = limitRaw !== undefined ? Number(limitRaw) : undefined;
+
   const parsed = SearchCannedResponsesInput.safeParse({
     query: c.req.query('query') ?? '',
-    limit: numParam(c, 'limit'),
+    limit: Number.isFinite(limitNum) ? limitNum : undefined,
   });
 
   if (!parsed.success) {
@@ -71,12 +75,16 @@ cannedResponseRoutes.patch('/canned-responses/:id', async (c) => {
     return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
   }
 
-  const response = await updateCannedResponse(db, c.req.param('id'), parsed.data);
-  if (!response) {
-    return c.json({ error: 'Not found' }, 404);
+  try {
+    const response = await updateCannedResponse(db, c.req.param('id'), parsed.data);
+    if (!response) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+    return c.json({ data: response });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return c.json({ error: message }, 400);
   }
-
-  return c.json({ data: response });
 });
 
 cannedResponseRoutes.delete('/canned-responses/:id', async (c) => {
