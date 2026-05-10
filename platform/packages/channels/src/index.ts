@@ -30,7 +30,7 @@ export {
 } from './types.js';
 
 // Registry
-export { registerAdapter, getAdapter, listAdapters } from './registry.js';
+export { registerAdapter, getAdapter, listAdapters, clearAdapters } from './registry.js';
 
 // Adapters
 export { webChatAdapter } from './adapters/web-chat.js';

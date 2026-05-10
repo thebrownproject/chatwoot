@@ -54,16 +54,12 @@ export class EmailAdapter implements ChannelAdapter {
    * Sets proper threading headers (Message-ID, In-Reply-To, References).
    */
   async deliver(message: MessageForDelivery, channel: ChannelRecord): Promise<SendResult> {
-    if (!message.senderEmail) {
-      return { success: false, error: 'No recipient email address provided' };
-    }
-
     const config = channel.config;
     const messageId = generateMessageId(message.conversationId, config.domain);
     const threadHeaders = await buildThreadHeaders(this.threadingDb, message.conversationId);
 
     const outbound: OutboundEmail = {
-      to: message.senderEmail,
+      to: message.senderEmail ?? '',
       from: config.fromAddress,
       fromName: config.fromName,
       replyTo: config.replyToAddress ?? config.fromAddress,
@@ -150,7 +146,7 @@ function isPostmarkPayload(payload: Record<string, unknown>): boolean {
 
 function parsePostmarkPayload(payload: Record<string, unknown>): InboundEmail {
   const fromFull = payload['FromFull'] as { Email?: string; Name?: string } | undefined;
-  const from = (fromFull?.Email?.trim().toLowerCase()) ?? extractEmailAddress((payload['From'] as string) ?? '');
+  const from = fromFull?.Email ?? extractEmailAddress((payload['From'] as string) ?? '');
   const fromName = fromFull?.Name ?? extractEmailName((payload['From'] as string) ?? '');
 
   if (!from) {
@@ -197,20 +193,10 @@ function parsePostmarkHeaders(
   if (!headers) return {};
   const result: Record<string, string> = {};
   for (const h of headers) {
-    const key = h.Name.toLowerCase();
-    if (SINGLE_ID_HEADERS.has(key)) {
-      result[key] = stripAngleBrackets(h.Value);
-    } else if (MULTI_ID_HEADERS.has(key)) {
-      result[key] = stripAngleBracketsFromEach(h.Value);
-    } else {
-      result[key] = h.Value;
-    }
+    result[h.Name.toLowerCase()] = h.Value;
   }
   return result;
 }
-
-const SINGLE_ID_HEADERS = new Set(['message-id', 'in-reply-to']);
-const MULTI_ID_HEADERS = new Set(['references']);
 
 function parseRawHeaders(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -220,17 +206,11 @@ function parseRawHeaders(raw: string): Record<string, string> {
 
   for (const line of lines) {
     if (/^\s/.test(line)) {
+      // Continuation of previous header
       currentValue += ' ' + line.trim();
     } else {
       if (currentKey) {
-        const key = currentKey.toLowerCase();
-        if (SINGLE_ID_HEADERS.has(key)) {
-          result[key] = stripAngleBrackets(currentValue.trim());
-        } else if (MULTI_ID_HEADERS.has(key)) {
-          result[key] = stripAngleBracketsFromEach(currentValue.trim());
-        } else {
-          result[key] = currentValue.trim();
-        }
+        result[currentKey.toLowerCase()] = stripAngleBrackets(currentValue.trim());
       }
       const colonIndex = line.indexOf(':');
       if (colonIndex > 0) {
@@ -240,39 +220,21 @@ function parseRawHeaders(raw: string): Record<string, string> {
     }
   }
   if (currentKey) {
-    const key = currentKey.toLowerCase();
-    if (SINGLE_ID_HEADERS.has(key)) {
-      result[key] = stripAngleBrackets(currentValue.trim());
-    } else if (MULTI_ID_HEADERS.has(key)) {
-      result[key] = stripAngleBracketsFromEach(currentValue.trim());
-    } else {
-      result[key] = currentValue.trim();
-    }
+    result[currentKey.toLowerCase()] = stripAngleBrackets(currentValue.trim());
   }
 
   return result;
 }
 
 function stripAngleBrackets(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function stripAngleBracketsFromEach(value: string): string {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(stripAngleBrackets)
-    .join(' ');
+  return value.replace(/[<>]/g, '');
 }
 
 function extractEmailAddress(fromField: string): string {
   const match = fromField.match(/<([^>]+)>/);
-  if (match) return match[1].trim().toLowerCase();
-  if (fromField.includes('@')) return fromField.trim().toLowerCase();
+  if (match) return match[1];
+  // Bare email address
+  if (fromField.includes('@')) return fromField.trim();
   return '';
 }
 
@@ -297,42 +259,61 @@ function generateFallbackMessageId(): string {
  * and any on* event handler attributes.
  */
 export function sanitizeInboundHtml(html: string): string {
-  // Decode HTML entities that could hide dangerous protocols
-  const decodedForCheck = html
-    .replace(/&#x([0-9a-f]+);?/gi, (_m, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&#(\d+);?/g, (_m, dec) => String.fromCharCode(parseInt(dec, 10)));
+  // Strip null bytes that can bypass regex matching
+  let sanitized = html.replace(/\0/g, '');
 
-  let sanitized = html;
-
-  // If entity-decoded version differs and contains dangerous patterns, sanitize the decoded version
-  if (decodedForCheck !== html) {
-    sanitized = decodedForCheck;
-  }
-
-  // Remove dangerous tags and their content (svg can contain script)
+  // Remove dangerous tags and their content (includes svg/math which can contain scripts)
+  const dangerousTags = 'script|iframe|object|embed|form|base|svg|math|link|meta|style|applet';
   sanitized = sanitized.replace(
-    /<\s*(script|iframe|object|embed|form|base|svg|math)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
+    new RegExp(`<\\s*(${dangerousTags})\\b[^>]*>[\\s\\S]*?<\\s*\\/\\s*\\1\\s*>`, 'gi'),
     '',
   );
   // Remove self-closing / unclosed dangerous tags
   sanitized = sanitized.replace(
-    /<\s*(script|iframe|object|embed|form|base|svg|math)\b[^>]*\/?>/gi,
+    new RegExp(`<\\s*(${dangerousTags})\\b[^>]*\\/?>`, 'gi'),
     '',
   );
+
   // Remove on* event handler attributes (onclick, onerror, onload, etc.)
+  // Handles whitespace variants including tabs/newlines between attr name and =
   sanitized = sanitized.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  // Remove javascript:/vbscript:/data: protocols in href/src/action attributes (including entity-encoded variants)
+
+  // Decode HTML entities in attribute values to catch encoded protocol bypasses,
+  // then strip dangerous protocols from ALL url-bearing attributes
+  const urlAttrs = 'href|src|action|formaction|xlink:href|data|poster|srcset|background';
+  const dangerousProtocols = /^\s*(?:javascript|vbscript|data)\s*:/i;
+
   sanitized = sanitized.replace(
-    /(href|src|action)\s*=\s*(?:"[^"]*"|'[^']*')/gi,
-    (match, attr) => {
-      const valueMatch = match.match(/=\s*(?:"([^"]*)"|'([^']*)')/);
-      const value = (valueMatch?.[1] ?? valueMatch?.[2] ?? '').trim().toLowerCase();
-      if (/^\s*(?:javascript|vbscript|data)\s*:/i.test(value)) {
+    new RegExp(`(${urlAttrs})\\s*=\\s*("[^"]*"|'[^']*')`, 'gi'),
+    (match, attr: string, quotedVal: string) => {
+      const quote = quotedVal[0];
+      const rawVal = quotedVal.slice(1, -1);
+      // Decode numeric and named entities for protocol check
+      const decoded = rawVal
+        .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)))
+        .replace(/&tab;|&newline;/gi, '');
+      if (dangerousProtocols.test(decoded)) {
+        return `${attr}=${quote}${quote}`;
+      }
+      return match;
+    },
+  );
+
+  // Also handle unquoted attribute values with dangerous protocols
+  sanitized = sanitized.replace(
+    new RegExp(`(${urlAttrs})\\s*=\\s*([^\\s>"'][^\\s>]*)`, 'gi'),
+    (match, attr: string, val: string) => {
+      const decoded = val
+        .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)));
+      if (dangerousProtocols.test(decoded)) {
         return `${attr}=""`;
       }
       return match;
     },
   );
+
   return sanitized;
 }
 

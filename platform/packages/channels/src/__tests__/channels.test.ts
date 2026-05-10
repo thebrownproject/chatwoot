@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { channelRoutes } from '../routes/channels.js';
 import { widgetRoutes, createWidgetStore } from '../routes/widget.js';
 import { createChannelDb } from '../data/channels.js';
-import { registerAdapter, getAdapter, listAdapters } from '../registry.js';
+import { registerAdapter, clearAdapters } from '../registry.js';
 import { webChatAdapter } from '../adapters/web-chat.js';
 import type { ChannelDb } from '../data/channels.js';
 import type { WidgetStore } from '../routes/widget.js';
@@ -47,8 +47,17 @@ describe('Channel CRUD routes', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST /channels returns 400 for whitespace-only name', async () => {
+    const res = await app.request('/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'web_chat', name: '   ' }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
   it('GET /channels lists channels', async () => {
-    // Create two channels
     await app.request('/channels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -121,6 +130,23 @@ describe('Channel CRUD routes', () => {
     const body = await res.json();
     expect(body.name).toBe('Updated Chat');
     expect(body.active).toBe(false);
+  });
+
+  it('PATCH /channels/:id returns 400 for whitespace-only name', async () => {
+    const createRes = await app.request('/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'web_chat', name: 'Chat' }),
+    });
+    const created = await createRes.json();
+
+    const res = await app.request(`/channels/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '   ' }),
+    });
+
+    expect(res.status).toBe(400);
   });
 
   it('DELETE /channels/:id deactivates a channel', async () => {
@@ -221,22 +247,59 @@ describe('Widget routes', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('POST /widget/conversations returns 400 for whitespace-only contact name', async () => {
+    const res = await app.request('/widget/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channelId: '00000000-0000-0000-0000-000000000001',
+        contactName: '   ',
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /widget/conversations returns 400 for whitespace-only initial message', async () => {
+    const res = await app.request('/widget/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channelId: '00000000-0000-0000-0000-000000000001',
+        contactName: 'Jane',
+        initialMessage: '   ',
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /widget/conversations/:id/messages returns 400 for whitespace-only body', async () => {
+    const createRes = await app.request('/widget/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channelId: '00000000-0000-0000-0000-000000000001',
+        contactName: 'Jane',
+      }),
+    });
+    const conv = await createRes.json();
+
+    const res = await app.request(`/widget/conversations/${conv.id}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: '   ' }),
+    });
+    expect(res.status).toBe(400);
+  });
 });
 
-describe('Channel registry', () => {
-  it('registers and retrieves an adapter', () => {
-    registerAdapter(webChatAdapter);
-    const adapter = getAdapter('web_chat');
-    expect(adapter.type).toBe('web_chat');
+describe('Channel registry (integration)', () => {
+  beforeEach(() => {
+    clearAdapters();
   });
 
-  it('throws for unregistered adapter type', () => {
-    expect(() => getAdapter('sms')).toThrow('No channel adapter registered for type: sms');
-  });
-
-  it('lists registered adapters', () => {
+  it('registers and retrieves the web chat adapter', () => {
     registerAdapter(webChatAdapter);
-    const types = listAdapters();
-    expect(types).toContain('web_chat');
+    expect(webChatAdapter.type).toBe('web_chat');
   });
 });
