@@ -16,6 +16,7 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
+import { tz } from './column-helpers.js';
 import { conversations } from './conversations.js';
 import { users } from './users.js';
 
@@ -35,7 +36,7 @@ export const messages = pgTable(
       .default(sql`gen_random_uuid()`),
     conversationId: uuid('conversation_id')
       .notNull()
-      .references(() => conversations.id),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     senderId: uuid('sender_id')
       .notNull()
       .references(() => users.id),
@@ -46,10 +47,10 @@ export const messages = pgTable(
     metadata: jsonb('metadata').default({}),
     attachments: jsonb('attachments').default([]),
     searchVector: tsvector('search_vector').default(sql`''::tsvector`),
-    createdAt: timestamp('created_at', { withTimezone: true })
+    createdAt: timestamp('created_at', tz)
       .notNull()
       .default(sql`now()`),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
+    updatedAt: timestamp('updated_at', tz)
       .notNull()
       .default(sql`now()`)
       .$onUpdate(() => new Date()),

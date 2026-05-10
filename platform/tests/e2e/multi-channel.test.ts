@@ -143,6 +143,40 @@ describe('Multi-channel conversations', () => {
     expect(chatEvents.map((e) => e.eventType)).toContain('resolved');
   });
 
+  it('routes conversations from different channels to different teams', async () => {
+    // Create teams
+    const emailTeam = await p.routingDb.createTeam({ name: 'Email Support' });
+    const chatTeam = await p.routingDb.createTeam({ name: 'Chat Support' });
+
+    const emailAgent = p.users.create({ type: 'human_agent', name: 'Email Agent' });
+    const chatAgent = p.users.create({ type: 'human_agent', name: 'Chat Agent' });
+
+    await p.routingDb.addTeamMember(emailTeam.id, emailAgent.id, 'member');
+    await p.routingDb.addTeamMember(chatTeam.id, chatAgent.id, 'member');
+
+    // Route email conversation
+    const emailConv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+    const emailResult = await p.routing.executeAction(
+      p.routingDb,
+      emailConv.id,
+      'assign_team',
+      'team',
+      emailTeam.id,
+    );
+    expect(emailResult.assignedTo).toBe(emailAgent.id);
+
+    // Route chat conversation
+    const chatConv = await p.conversations.create(p.db, { channelOrigin: 'web_chat' });
+    const chatResult = await p.routing.executeAction(
+      p.routingDb,
+      chatConv.id,
+      'assign_team',
+      'team',
+      chatTeam.id,
+    );
+    expect(chatResult.assignedTo).toBe(chatAgent.id);
+  });
+
   it('supports channel-specific metadata while keeping core model consistent', async () => {
     const emailConv = await p.conversations.create(p.db, {
       channelOrigin: 'email',

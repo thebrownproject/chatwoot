@@ -5,10 +5,12 @@ import type {
 } from '../types.js';
 
 /**
- * In-memory round-robin state per team.
- * NOTE: Production should use Redis for cross-process consistency.
+ * In-memory round-robin index per team, capped at {@link MAX_ROUND_ROBIN_ENTRIES}
+ * entries with FIFO eviction. Replace with Redis INCR for atomic cross-process
+ * rotation in multi-process deployment.
  */
 const roundRobinIndex = new Map<string, number>();
+const MAX_ROUND_ROBIN_ENTRIES = 10_000;
 
 /**
  * Execute a routing rule's action on a conversation.
@@ -55,12 +57,21 @@ export async function roundRobin(
   const members = await db.getTeamMembers(teamId);
   if (members.length === 0) return null;
 
-  const rawIndex = roundRobinIndex.get(teamId) ?? -1;
-  const clampedIndex = rawIndex >= members.length ? -1 : rawIndex;
-  const nextIndex = (clampedIndex + 1) % members.length;
+  const lastIndex = roundRobinIndex.get(teamId) ?? -1;
+  const nextIndex = (lastIndex + 1) % members.length;
   roundRobinIndex.set(teamId, nextIndex);
 
+  if (roundRobinIndex.size > MAX_ROUND_ROBIN_ENTRIES) {
+    const firstKey = roundRobinIndex.keys().next().value;
+    if (firstKey !== undefined) roundRobinIndex.delete(firstKey);
+  }
+
   return members[nextIndex]?.userId ?? null;
+}
+
+/** Remove round-robin state for a deleted team. */
+export function clearRoundRobinForTeam(teamId: string): void {
+  roundRobinIndex.delete(teamId);
 }
 
 /** Reset round-robin state (for testing). */

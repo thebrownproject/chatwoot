@@ -201,6 +201,70 @@ describe('Agent copilot', () => {
     expect(handoffs[0]!.conversationId).toBe(conv.id);
   });
 
+  describe('Agent registration and config', () => {
+    it('registers an agent and retrieves config', async () => {
+      const config = await p.agents.register(p.db, {
+        name: 'Ron Swanson',
+        model: 'claude-sonnet-4-20250514',
+        capabilities: ['respond', 'suggest', 'escalate'],
+        instructions: 'You are a construction compliance expert.',
+        tools: [{ name: 'lookup_permit', description: 'Look up permit info' }],
+      });
+
+      expect(config.name).toBe('Ron Swanson');
+      expect(config.capabilities).toContain('respond');
+      expect(config.tools).toHaveLength(1);
+
+      const fetched = await p.agents.getConfig(p.db, config.id);
+      expect(fetched?.name).toBe('Ron Swanson');
+      expect(fetched?.model).toBe('claude-sonnet-4-20250514');
+    });
+
+    it('lists all registered agents', async () => {
+      await p.agents.register(p.db, {
+        name: 'Agent A',
+        model: 'test',
+        capabilities: ['respond'],
+        instructions: 'test',
+      });
+      await p.agents.register(p.db, {
+        name: 'Agent B',
+        model: 'test',
+        capabilities: ['suggest'],
+        instructions: 'test',
+      });
+
+      const all = await p.agents.list(p.db);
+      expect(all).toHaveLength(2);
+    });
+
+    it('updates agent config', async () => {
+      const config = await p.agents.register(p.db, {
+        name: 'Ron',
+        model: 'v1',
+        capabilities: ['respond'],
+        instructions: 'original',
+      });
+
+      const updated = await p.agents.updateConfig(p.db, config.id, {
+        model: 'v2',
+        instructions: 'updated instructions',
+        capabilities: ['respond', 'escalate'],
+      });
+
+      expect(updated?.model).toBe('v2');
+      expect(updated?.instructions).toBe('updated instructions');
+      expect(updated?.capabilities).toContain('escalate');
+    });
+
+    it('returns undefined when updating non-existent agent', async () => {
+      const result = await p.agents.updateConfig(p.db, 'non-existent', {
+        name: 'test',
+      });
+      expect(result).toBeUndefined();
+    });
+  });
+
   it('generates a suggestion via the generate helper', async () => {
     const agent = p.users.create({ type: 'ai_agent', name: 'Ron Swanson' });
     const conv = await p.conversations.create(p.db, {

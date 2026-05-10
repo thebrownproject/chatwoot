@@ -59,6 +59,7 @@ export default function ConversationPage({
     let cancelled = false;
 
     setIsLoading(true);
+    setError(null);
     loadConversationData(id)
       .then((data) => {
         if (cancelled) return;
@@ -75,7 +76,6 @@ export default function ConversationPage({
             ? { counts: getShellCounts(data.conversations, data.currentUser) }
             : {}),
         });
-        setError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;

@@ -1,22 +1,17 @@
 import { Hono } from 'hono';
 import { CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
 import { createMessage, getMessageById, listMessages, searchMessages } from '../data/messages.js';
-import type { RouteEnv } from './shared.js';
-import { numParam } from './shared.js';
+import { getConversationById } from '../data/conversations.js';
+import type { Db } from '../data/db.js';
 
-export const messageRoutes = new Hono<RouteEnv>();
+type MessageRouteEnv = { Variables: { db: Db; actorId: string } };
 
-function foreignKeyConstraint(err: unknown): string | undefined {
-  if (typeof err !== 'object' || err === null || !('code' in err) || (err as { code?: string }).code !== '23503') {
-    return undefined;
-  }
+export const messageRoutes = new Hono<MessageRouteEnv>();
 
-  const error = err as {
-    constraint_name?: string;
-    constraint?: string;
-    message?: string;
-  };
-  return error.constraint_name ?? error.constraint ?? error.message;
+function numParam(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 messageRoutes.get('/conversations/:id/messages', async (c) => {
@@ -25,12 +20,12 @@ messageRoutes.get('/conversations/:id/messages', async (c) => {
   const parsed = ListMessagesInput.safeParse({
     conversationId: c.req.param('id'),
     visibility: c.req.query('visibility'),
-    limit: numParam(c, 'limit'),
-    offset: numParam(c, 'offset'),
+    limit: numParam(c.req.query('limit')),
+    offset: numParam(c.req.query('offset')),
   });
 
   if (!parsed.success) {
-    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
+    return c.json({ error: 'Invalid request', details: parsed.error.flatten() }, 400);
   }
 
   const results = await listMessages(db, parsed.data);
@@ -49,21 +44,22 @@ messageRoutes.post('/conversations/:id/messages', async (c) => {
   });
 
   if (!parsed.success) {
-    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
+    return c.json({ error: 'Invalid request', details: parsed.error.flatten() }, 400);
+  }
+
+  // Verify conversation exists before creating a message
+  const conversation = await getConversationById(db, parsed.data.conversationId);
+  if (!conversation) {
+    return c.json({ error: 'Conversation not found' }, 404);
   }
 
   try {
     const message = await createMessage(db, parsed.data);
     return c.json({ data: message }, 201);
   } catch (err) {
-    const constraint = foreignKeyConstraint(err);
-    if (constraint?.includes('conversation_id')) {
-      return c.json({ error: 'Conversation not found' }, 404);
+    if (err instanceof Error && err.message.includes('empty or whitespace')) {
+      return c.json({ error: err.message }, 400);
     }
-    if (constraint?.includes('sender_id')) {
-      return c.json({ error: 'Sender not found' }, 404);
-    }
-
     throw err;
   }
 });
@@ -73,12 +69,12 @@ messageRoutes.get('/messages/search', async (c) => {
 
   const parsed = SearchMessagesInput.safeParse({
     query: c.req.query('query') ?? '',
-    limit: numParam(c, 'limit'),
-    offset: numParam(c, 'offset'),
+    limit: numParam(c.req.query('limit')),
+    offset: numParam(c.req.query('offset')),
   });
 
   if (!parsed.success) {
-    return c.json({ error: "Invalid request body", details: parsed.error.flatten() }, 400);
+    return c.json({ error: 'Invalid request', details: parsed.error.flatten() }, 400);
   }
 
   const results = await searchMessages(db, parsed.data);

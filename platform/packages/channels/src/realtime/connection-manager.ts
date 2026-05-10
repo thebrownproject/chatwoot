@@ -12,6 +12,10 @@ export interface ConnectionInfo {
 /**
  * Tracks WebSocket connections per user, manages conversation subscriptions,
  * and handles broadcast/online status.
+ *
+ * Instance-scoped state (not module-level). Each process owns its own instance.
+ * For multi-process deployment, pair with Redis pub/sub to fan out events across
+ * processes -- each ConnectionManager handles only its local WebSocket connections.
  */
 export class ConnectionManager {
   /** ws instance -> connection metadata */
@@ -119,7 +123,11 @@ export class ConnectionManager {
     const payload = JSON.stringify(event);
     for (const ws of targets) {
       if (ws !== excludeWs && ws.readyState === ws.OPEN) {
-        ws.send(payload);
+        try {
+          ws.send(payload);
+        } catch {
+          // Connection may close between readyState check and send; skip it
+        }
       }
     }
   }
@@ -143,5 +151,12 @@ export class ConnectionManager {
 
   getConversationSubscriberCount(conversationId: string): number {
     return this.conversationSubscribers.get(conversationId)?.size ?? 0;
+  }
+
+  /** Clear all connection state. For testing only. */
+  reset(): void {
+    this.connections.clear();
+    this.userConnections.clear();
+    this.conversationSubscribers.clear();
   }
 }

@@ -27,6 +27,16 @@ import {
   teamsRelations,
   teamMembersRelations,
 } from '../schema/teams.js';
+import { routingRulesRelations } from '../schema/routing-rules.js';
+import {
+  notificationsRelations,
+  notificationSettingsRelations,
+} from '../schema/notifications.js';
+import {
+  portalsRelations,
+  categoriesRelations,
+  articlesRelations,
+} from '../schema/knowledge-base.js';
 
 // ── Table exports ──
 
@@ -341,6 +351,13 @@ describe('table names map to Postgres', () => {
     expect(getTableName(schema.teams)).toBe('teams');
     expect(getTableName(schema.teamMembers)).toBe('team_members');
     expect(getTableName(schema.routingRules)).toBe('routing_rules');
+    expect(getTableName(schema.notifications)).toBe('notifications');
+    expect(getTableName(schema.notificationSettings)).toBe(
+      'notification_settings',
+    );
+    expect(getTableName(schema.portals)).toBe('portals');
+    expect(getTableName(schema.categories)).toBe('categories');
+    expect(getTableName(schema.articles)).toBe('articles');
   });
 });
 
@@ -415,6 +432,36 @@ describe('relations are configured', () => {
     expect(teamMembersRelations).toBeDefined();
     expect(teamMembersRelations.table).toBe(schema.teamMembers);
   });
+
+  it('routingRulesRelations is configured', () => {
+    expect(routingRulesRelations).toBeDefined();
+    expect(routingRulesRelations.table).toBe(schema.routingRules);
+  });
+
+  it('notificationsRelations references users', () => {
+    expect(notificationsRelations).toBeDefined();
+    expect(notificationsRelations.table).toBe(schema.notifications);
+  });
+
+  it('notificationSettingsRelations references users', () => {
+    expect(notificationSettingsRelations).toBeDefined();
+    expect(notificationSettingsRelations.table).toBe(schema.notificationSettings);
+  });
+
+  it('portalsRelations is configured', () => {
+    expect(portalsRelations).toBeDefined();
+    expect(portalsRelations.table).toBe(schema.portals);
+  });
+
+  it('categoriesRelations references portals', () => {
+    expect(categoriesRelations).toBeDefined();
+    expect(categoriesRelations.table).toBe(schema.categories);
+  });
+
+  it('articlesRelations references portals and users', () => {
+    expect(articlesRelations).toBeDefined();
+    expect(articlesRelations.table).toBe(schema.articles);
+  });
 });
 
 // ── Indexes ──
@@ -449,5 +496,52 @@ describe('indexes', () => {
     expect(indexNames).toContain('idx_messages_conversation_id');
     expect(indexNames).toContain('idx_messages_sender_id');
     expect(indexNames).toContain('idx_messages_search');
+  });
+
+  it('channels table has type index', () => {
+    const config = getTableConfig(schema.channels);
+    const indexNames = config.indexes.map((i) => i.config.name);
+    expect(indexNames).toContain('idx_channels_type');
+  });
+
+  it('notifications table has indexes', () => {
+    const config = getTableConfig(schema.notifications);
+    const indexNames = config.indexes.map((i) => i.config.name);
+    expect(indexNames).toContain('idx_notifications_user_id');
+    expect(indexNames).toContain('idx_notifications_user_unread');
+  });
+
+  it('portals table has slug unique index', () => {
+    const config = getTableConfig(schema.portals);
+    const indexNames = config.indexes.map((i) => i.config.name);
+    expect(indexNames).toContain('idx_portals_slug');
+  });
+
+  it('articles table has indexes', () => {
+    const config = getTableConfig(schema.articles);
+    const indexNames = config.indexes.map((i) => i.config.name);
+    expect(indexNames).toContain('idx_articles_portal_id');
+    expect(indexNames).toContain('idx_articles_category_id');
+    expect(indexNames).toContain('idx_articles_portal_slug');
+    expect(indexNames).toContain('idx_articles_search');
+  });
+
+  it('categories table has indexes', () => {
+    const config = getTableConfig(schema.categories);
+    const indexNames = config.indexes.map((i) => i.config.name);
+    expect(indexNames).toContain('idx_categories_portal_id');
+    expect(indexNames).toContain('idx_categories_portal_slug');
+  });
+
+  it('users email index is unique', () => {
+    const config = getTableConfig(schema.users);
+    const emailIdx = config.indexes.find((i) => i.config.name === 'idx_users_email');
+    expect(emailIdx).toBeDefined();
+    expect(emailIdx!.config.unique).toBe(true);
+  });
+
+  it('routingRules conditions column is notNull', () => {
+    const cols = getTableColumns(schema.routingRules);
+    expect(cols.conditions.notNull).toBe(true);
   });
 });

@@ -70,6 +70,36 @@ describe('WebChatAdapter', () => {
       expect(() => webChatAdapter.receive({ conversationId: 'x' })).toThrow('Invalid web chat message');
     });
 
+    it('throws on empty body', () => {
+      const raw = { conversationId: 'conv-1', senderId: 'user-1', body: '' };
+      expect(() => webChatAdapter.receive(raw)).toThrow('body cannot be empty');
+    });
+
+    it('throws on whitespace-only body', () => {
+      const raw = { conversationId: 'conv-1', senderId: 'user-1', body: '   \n\t  ' };
+      expect(() => webChatAdapter.receive(raw)).toThrow('body cannot be empty');
+    });
+
+    it('throws on invalid senderType', () => {
+      const raw = {
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        body: 'test',
+        senderType: 'admin' as any,
+      };
+      expect(() => webChatAdapter.receive(raw)).toThrow("invalid senderType 'admin'");
+    });
+
+    it('throws on invalid timestamp', () => {
+      const raw = {
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        body: 'test',
+        timestamp: 'not-a-date',
+      };
+      expect(() => webChatAdapter.receive(raw)).toThrow("invalid timestamp 'not-a-date'");
+    });
+
     it('uses current date when timestamp is not provided', () => {
       const before = new Date();
       const raw = {
@@ -186,6 +216,42 @@ describe('WebChatAdapter', () => {
 
       const result = webChatAdapter.formatMessage(message, { id: 'system', name: 'System' });
       expect(result.sender.type).toBe('system');
+    });
+
+    it('generates unique IDs for messages at the same timestamp', () => {
+      const timestamp = new Date('2026-01-01T12:00:00.000Z');
+      const message: NormalizedMessage = {
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        senderType: 'contact',
+        type: 'text',
+        visibility: 'public',
+        body: 'Hello',
+        timestamp,
+      };
+      const sender = { id: 'user-1', name: 'Test' };
+
+      const id1 = webChatAdapter.formatMessage(message, sender).id;
+      const id2 = webChatAdapter.formatMessage(message, sender).id;
+
+      expect(id1).not.toBe(id2);
+    });
+
+    it('generates valid UUID for message ID', () => {
+      const message: NormalizedMessage = {
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        senderType: 'contact',
+        type: 'text',
+        visibility: 'public',
+        body: 'Hello',
+        timestamp: new Date(),
+      };
+
+      const result = webChatAdapter.formatMessage(message, { id: 'user-1', name: 'Test' });
+      expect(result.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
     });
   });
 });

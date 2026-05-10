@@ -123,4 +123,37 @@ describe('assignment', () => {
     expect(remaining).toHaveLength(1);
     expect(remaining[0]!.id).toBe(CONV_ID_2);
   });
+
+  it('reassigns from one agent to another', async () => {
+    await assignConversation(db, CONV_ID, AGENT_A, ACTOR);
+    await assignConversation(db, CONV_ID, AGENT_B, ACTOR);
+
+    const assignee = await getAssignee(db, CONV_ID);
+    expect(assignee?.id).toBe(AGENT_B);
+
+    const events = db.getEvents();
+    const assignedEvents = events.filter((e) => e.eventType === 'assigned');
+    expect(assignedEvents).toHaveLength(2);
+    expect(assignedEvents[1]!.payload).toEqual({ assigneeId: AGENT_B });
+  });
+
+  it('unassign on already-unassigned records null previousAssigneeId', async () => {
+    await unassignConversation(db, CONV_ID, ACTOR);
+
+    const events = db.getEvents();
+    const unassignedEvents = events.filter((e) => e.eventType === 'unassigned');
+    expect(unassignedEvents).toHaveLength(1);
+    expect(unassignedEvents[0]!.payload).toEqual({ previousAssigneeId: null });
+  });
+
+  it('returns empty list for user with no assignments', async () => {
+    const assigned = await getAssignedConversations(db, AGENT_A);
+    expect(assigned).toHaveLength(0);
+  });
+
+  it('filters unassigned conversations by status', async () => {
+    const openOnly = await getUnassignedConversations(db, { status: 'open' });
+    expect(openOnly).toHaveLength(1);
+    expect(openOnly[0]!.id).toBe(CONV_ID);
+  });
 });

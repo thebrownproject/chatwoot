@@ -1,15 +1,18 @@
 import type { DbClient, HandoffRequest } from './types.js';
 
 // ---------------------------------------------------------------------------
-// In-memory stores (replaced by DB queries in production)
+// In-memory stores. Replace with DB queries (Drizzle) in production.
+// Not multi-process safe -- each process would have its own copy.
 // ---------------------------------------------------------------------------
 
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const handoffs = new Map<string, HandoffRequest>();
 
 interface ConversationAssignment {
   assigneeId: string | null;
 }
 
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const assignments = new Map<string, ConversationAssignment>();
 
 interface EventRecord {
@@ -19,6 +22,7 @@ interface EventRecord {
   payload: Record<string, unknown>;
 }
 
+/** In-memory only. Replace with DB writes for multi-process deployment. */
 const events: EventRecord[] = [];
 
 /** Seed an assignment for testing. */
@@ -109,6 +113,10 @@ export async function handoffToAgent(
   agentId: string,
   fromUserId: string,
 ): Promise<void> {
+  if (agentId === fromUserId) {
+    throw new Error('Cannot hand off to self');
+  }
+
   assignments.set(conversationId, { assigneeId: agentId });
 
   events.push({

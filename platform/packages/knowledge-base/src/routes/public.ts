@@ -1,25 +1,18 @@
-/**
- * Public portal routes (no auth).
- *
- * These routes serve the customer-facing help center. They only expose
- * published articles and active portals.
- */
-
 import { Hono } from 'hono';
 
 import type { ArticleRecord } from '../types.js';
 import { getPortalBySlug } from '../data/portals.js';
-
-function sanitizeArticle({ authorId, portalId, categoryId, ...rest }: ArticleRecord) {
-  return rest;
-}
-import { listCategoriesByPortal, getCategoryById } from '../data/categories.js';
+import { listCategoriesByPortal } from '../data/categories.js';
 import {
   getArticleBySlug,
   listArticlesByPortal,
   incrementViewCount,
   searchArticles,
 } from '../data/articles.js';
+
+function sanitizeArticle({ authorId, portalId, categoryId, ...rest }: ArticleRecord) {
+  return rest;
+}
 
 // ---------------------------------------------------------------------------
 // Route factory

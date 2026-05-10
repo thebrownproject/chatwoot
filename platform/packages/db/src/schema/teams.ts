@@ -40,10 +40,10 @@ export const teamMembers = pgTable(
   {
     teamId: uuid('team_id')
       .notNull()
-      .references(() => teams.id),
+      .references(() => teams.id, { onDelete: 'cascade' }),
     userId: uuid('user_id')
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: 'cascade' }),
     role: teamMemberRoleEnum('role').notNull().default('member'),
     createdAt: timestamp('created_at', tz).notNull().defaultNow(),
   },

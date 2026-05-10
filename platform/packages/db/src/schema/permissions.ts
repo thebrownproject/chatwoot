@@ -13,7 +13,7 @@ export const permissions = pgTable(
       .default(sql`gen_random_uuid()`),
     userId: uuid('user_id')
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: 'cascade' }),
     role: roleEnum('role').notNull(),
     capabilities: text('capabilities').array().notNull().default([]),
   },

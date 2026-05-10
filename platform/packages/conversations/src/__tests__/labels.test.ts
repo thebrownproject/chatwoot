@@ -1,39 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { labelRoutes } from '../routes/labels.js';
-import * as labelsData from '../data/labels.js';
+import { createLabel, listLabels, addLabelToConversation, removeLabelFromConversation, getConversationLabels, getConversationsByLabel } from '../data/labels.js';
 import { CreateLabelInput } from '../types/labels.js';
-import type { Label } from '../types/labels.js';
-
-vi.mock('../data/labels.js', () => ({
-  createLabel: vi.fn(),
-  listLabels: vi.fn(),
-  addLabelToConversation: vi.fn(),
-  removeLabelFromConversation: vi.fn(),
-  getConversationLabels: vi.fn(),
-  getConversationsByLabel: vi.fn(),
-}));
-
-const mockDb = {} as any;
-
-function createApp() {
-  const app = new Hono();
-  app.use('*', async (c, next) => {
-    c.set('db', mockDb);
-    await next();
-  });
-  app.route('/', labelRoutes);
-  return app;
-}
-
-const sampleLabel: Label = {
-  id: '550e8400-e29b-41d4-a716-446655440010',
-  name: 'billing',
-  color: '#ff0000',
-  createdAt: new Date('2026-01-01T00:00:00Z'),
-};
+import { createTestDb, type TestDb } from './helpers.js';
 
 const conversationId = '660e8400-e29b-41d4-a716-446655440001';
+const labelId = '550e8400-e29b-41d4-a716-446655440010';
 
 describe('Label Types', () => {
   it('validates CreateLabelInput', () => {
@@ -43,6 +16,11 @@ describe('Label Types', () => {
 
   it('rejects empty name', () => {
     const invalid = CreateLabelInput.safeParse({ name: '' });
+    expect(invalid.success).toBe(false);
+  });
+
+  it('rejects whitespace-only name', () => {
+    const invalid = CreateLabelInput.safeParse({ name: '   ' });
     expect(invalid.success).toBe(false);
   });
 
@@ -57,17 +35,121 @@ describe('Label Types', () => {
   });
 });
 
+describe('Label Data Layer', () => {
+  let db: TestDb;
+
+  beforeEach(() => {
+    db = createTestDb();
+  });
+
+  it('creates a label', async () => {
+    const label = await createLabel(db, { name: 'billing', color: '#ff0000' });
+    expect(label.name).toBe('billing');
+    expect(label.color).toBe('#ff0000');
+    expect(label.id).toBeDefined();
+  });
+
+  it('creates a label with null color', async () => {
+    const label = await createLabel(db, { name: 'support' });
+    expect(label.color).toBeNull();
+  });
+
+  it('deduplicates labels by name (returns existing)', async () => {
+    const first = await createLabel(db, { name: 'billing', color: '#ff0000' });
+    const second = await createLabel(db, { name: 'billing', color: '#00ff00' });
+    expect(second.id).toBe(first.id);
+    expect(second.color).toBe('#ff0000');
+  });
+
+  it('trims label names before creating', async () => {
+    const label = await createLabel(db, { name: '  billing  ' });
+    expect(label.name).toBe('billing');
+  });
+
+  it('throws on whitespace-only name', async () => {
+    await expect(createLabel(db, { name: '   ' })).rejects.toThrow('Label name cannot be empty');
+  });
+
+  it('lists labels sorted by name', async () => {
+    await createLabel(db, { name: 'zebra' });
+    await createLabel(db, { name: 'alpha' });
+    const labels = await listLabels(db);
+    expect(labels[0].name).toBe('alpha');
+    expect(labels[1].name).toBe('zebra');
+  });
+
+  it('adds label to conversation', async () => {
+    const label = await createLabel(db, { name: 'urgent' });
+    const cl = await addLabelToConversation(db, { conversationId, labelId: label.id });
+    expect(cl.conversationId).toBe(conversationId);
+    expect(cl.labelId).toBe(label.id);
+  });
+
+  it('adding same label to same conversation is idempotent', async () => {
+    const label = await createLabel(db, { name: 'urgent' });
+    await addLabelToConversation(db, { conversationId, labelId: label.id });
+    const second = await addLabelToConversation(db, { conversationId, labelId: label.id });
+    expect(second.conversationId).toBe(conversationId);
+    const labels = await getConversationLabels(db, conversationId);
+    expect(labels).toHaveLength(1);
+  });
+
+  it('removes label from conversation', async () => {
+    const label = await createLabel(db, { name: 'urgent' });
+    await addLabelToConversation(db, { conversationId, labelId: label.id });
+    await removeLabelFromConversation(db, { conversationId, labelId: label.id });
+    const labels = await getConversationLabels(db, conversationId);
+    expect(labels).toHaveLength(0);
+  });
+
+  it('gets conversation labels', async () => {
+    const l1 = await createLabel(db, { name: 'billing' });
+    const l2 = await createLabel(db, { name: 'urgent' });
+    await addLabelToConversation(db, { conversationId, labelId: l1.id });
+    await addLabelToConversation(db, { conversationId, labelId: l2.id });
+    const labels = await getConversationLabels(db, conversationId);
+    expect(labels).toHaveLength(2);
+  });
+
+  it('gets conversations by label', async () => {
+    const label = await createLabel(db, { name: 'billing' });
+    const conv1 = '660e8400-e29b-41d4-a716-446655440001';
+    const conv2 = '660e8400-e29b-41d4-a716-446655440002';
+    await addLabelToConversation(db, { conversationId: conv1, labelId: label.id });
+    await addLabelToConversation(db, { conversationId: conv2, labelId: label.id });
+    const convIds = await getConversationsByLabel(db, label.id);
+    expect(convIds).toHaveLength(2);
+    expect(convIds).toContain(conv1);
+    expect(convIds).toContain(conv2);
+  });
+
+  it('returns empty array for conversation with no labels', async () => {
+    const labels = await getConversationLabels(db, 'nonexistent');
+    expect(labels).toHaveLength(0);
+  });
+
+  it('returns empty array for label with no conversations', async () => {
+    const convIds = await getConversationsByLabel(db, 'nonexistent');
+    expect(convIds).toHaveLength(0);
+  });
+});
+
 describe('Label Routes', () => {
+  let db: TestDb;
   let app: Hono;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    app = createApp();
+    db = createTestDb();
+    app = new Hono();
+    app.use('*', async (c, next) => {
+      c.set('db', db);
+      await next();
+    });
+    app.route('/', labelRoutes);
   });
 
   it('GET /labels returns all labels', async () => {
-    vi.mocked(labelsData.listLabels).mockResolvedValue([sampleLabel]);
-
+    await createLabel(db, { name: 'billing' });
     const res = await app.request('/labels');
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -76,8 +158,6 @@ describe('Label Routes', () => {
   });
 
   it('POST /labels creates a label', async () => {
-    vi.mocked(labelsData.createLabel).mockResolvedValue(sampleLabel);
-
     const res = await app.request('/labels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -97,8 +177,18 @@ describe('Label Routes', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST /labels rejects whitespace-only name', async () => {
+    const res = await app.request('/labels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '   ' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('GET /conversations/:id/labels returns conversation labels', async () => {
-    vi.mocked(labelsData.getConversationLabels).mockResolvedValue([sampleLabel]);
+    const label = await createLabel(db, { name: 'billing' });
+    await addLabelToConversation(db, { conversationId, labelId: label.id });
 
     const res = await app.request(`/conversations/${conversationId}/labels`);
     expect(res.status).toBe(200);
@@ -107,15 +197,12 @@ describe('Label Routes', () => {
   });
 
   it('POST /conversations/:id/labels adds a label', async () => {
-    vi.mocked(labelsData.addLabelToConversation).mockResolvedValue({
-      conversationId,
-      labelId: sampleLabel.id,
-    });
+    const label = await createLabel(db, { name: 'billing' });
 
     const res = await app.request(`/conversations/${conversationId}/labels`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ labelId: sampleLabel.id }),
+      body: JSON.stringify({ labelId: label.id }),
     });
     expect(res.status).toBe(201);
   });
@@ -130,10 +217,11 @@ describe('Label Routes', () => {
   });
 
   it('DELETE /conversations/:id/labels/:labelId removes a label', async () => {
-    vi.mocked(labelsData.removeLabelFromConversation).mockResolvedValue();
+    const label = await createLabel(db, { name: 'billing' });
+    await addLabelToConversation(db, { conversationId, labelId: label.id });
 
     const res = await app.request(
-      `/conversations/${conversationId}/labels/${sampleLabel.id}`,
+      `/conversations/${conversationId}/labels/${label.id}`,
       { method: 'DELETE' },
     );
     expect(res.status).toBe(200);

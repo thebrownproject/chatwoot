@@ -1,6 +1,7 @@
 import { relations, sql } from 'drizzle-orm';
 import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
+import { tz } from './column-helpers.js';
 import { users } from './users.js';
 
 export const cannedResponses = pgTable('canned_responses', {
@@ -13,10 +14,10 @@ export const cannedResponses = pgTable('canned_responses', {
   createdBy: uuid('created_by')
     .notNull()
     .references(() => users.id),
-  createdAt: timestamp('created_at', { withTimezone: true })
+  createdAt: timestamp('created_at', tz)
     .notNull()
     .default(sql`now()`),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updatedAt: timestamp('updated_at', tz)
     .notNull()
     .default(sql`now()`)
     .$onUpdate(() => new Date()),

@@ -11,6 +11,10 @@ export interface MetricsDb {
   query<T>(sql: string, params?: unknown[]): Promise<T[]>;
 }
 
+function isValidDate(d: unknown): d is Date {
+  return d instanceof Date && !isNaN(d.getTime());
+}
+
 function buildDateConditions(
   filters: DateRangeFilter | undefined,
   dateColumn: string,
@@ -20,12 +24,12 @@ function buildDateConditions(
   const params: unknown[] = [];
   let idx = startParamIdx;
 
-  if (filters?.from) {
+  if (filters?.from && isValidDate(filters.from)) {
     conditions.push(`${dateColumn} >= $${idx}`);
     params.push(filters.from);
     idx++;
   }
-  if (filters?.to) {
+  if (filters?.to && isValidDate(filters.to)) {
     conditions.push(`${dateColumn} <= $${idx}`);
     params.push(filters.to);
     idx++;
@@ -131,6 +135,10 @@ export async function getAgentMetrics(
   agentId: string,
   filters?: DateRangeFilter,
 ): Promise<AgentMetrics> {
+  if (!agentId || !agentId.trim()) {
+    return { agentId, conversationsAssigned: 0, conversationsResolved: 0, avgResponseMs: null, currentOpen: 0 };
+  }
+
   const { conditions, params } = buildDateConditions(filters, 'c.created_at', 2);
   conditions.unshift('c.assignee_id = $1');
   params.unshift(agentId);
@@ -168,6 +176,10 @@ export async function getTeamMetrics(
   teamId: string,
   filters?: DateRangeFilter,
 ): Promise<TeamMetrics> {
+  if (!teamId || !teamId.trim()) {
+    return { teamId, conversationsAssigned: 0, conversationsResolved: 0, avgFirstReplyMs: null, avgResolutionMs: null, currentOpen: 0 };
+  }
+
   const { conditions, params } = buildDateConditions(filters, 'c.created_at', 2);
   params.unshift(teamId);
 

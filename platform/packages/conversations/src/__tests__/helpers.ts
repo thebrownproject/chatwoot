@@ -2,15 +2,30 @@ import type { Db } from '../data/db.js';
 import type { ParticipantRole, ConversationParticipant, ParticipantWithUser } from '../types/participants.js';
 import type { ConversationEvent, ConversationEventCreate } from '../types/events.js';
 import type { AssignedConversation, AssignedConversationsFilter, ConversationAssignee } from '../types/assignment.js';
+import type { Message, CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
+import type { Label, ConversationLabel } from '../types/labels.js';
+import type { CannedResponse } from '../types/canned-responses.js';
+import type { Conversation, ConversationCreate, ConversationUpdate, ConversationFilters } from '../types.js';
 
 /** Simple in-memory DB for unit tests. */
 export function createTestDb(): Db {
   const participantStore: ConversationParticipant[] = [];
   const eventStore: ConversationEvent[] = [];
+  const messageStore: Message[] = [];
   const conversationAssignees: Map<string, string | null> = new Map();
 
-  // Seed some test conversations
   const conversationStore: AssignedConversation[] = [];
+
+  // Conversation CRUD store
+  const conversationCrudStore = new Map<string, Conversation>();
+  let displayIdCounter = 0;
+
+  // Labels
+  const labelStore: Label[] = [];
+  const conversationLabelStore: ConversationLabel[] = [];
+
+  // Canned responses
+  const cannedResponseStore: CannedResponse[] = [];
 
   let idCounter = 0;
   const nextId = () => {
@@ -33,10 +48,76 @@ export function createTestDb(): Db {
     seedUser: typeof seedUser;
     seedConversation: typeof seedConversation;
     getEvents: () => ConversationEvent[];
+    getMessages: () => Message[];
+    getConversations: () => Conversation[];
   } = {
     seedUser,
     seedConversation,
     getEvents: () => [...eventStore],
+    getMessages: () => [...messageStore],
+    getConversations: () => [...conversationCrudStore.values()],
+    conversationCrud: {
+      async create(data: ConversationCreate): Promise<Conversation> {
+        const id = crypto.randomUUID();
+        const timestamp = new Date();
+        displayIdCounter += 1;
+        const conversation: Conversation = {
+          id,
+          displayId: displayIdCounter,
+          status: 'open',
+          channelOrigin: data.channelOrigin,
+          assigneeId: data.assigneeId ?? null,
+          subject: data.subject ?? null,
+          priority: data.priority ?? 'medium',
+          snoozedUntil: null,
+          firstReplyAt: null,
+          resolvedAt: null,
+          metadata: data.metadata ?? {},
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        conversationCrudStore.set(id, conversation);
+        return conversation;
+      },
+      async getById(id: string): Promise<Conversation | undefined> {
+        return conversationCrudStore.get(id);
+      },
+      async getByDisplayId(displayId: number): Promise<Conversation | undefined> {
+        for (const conv of conversationCrudStore.values()) {
+          if (conv.displayId === displayId) return conv;
+        }
+        return undefined;
+      },
+      async list(filters: ConversationFilters = {}): Promise<{ data: Conversation[]; total: number }> {
+        const results = [...conversationCrudStore.values()].filter((c) => {
+          if (filters.status !== undefined && c.status !== filters.status) return false;
+          if (filters.assigneeId !== undefined && c.assigneeId !== filters.assigneeId) return false;
+          if (filters.channelOrigin !== undefined && c.channelOrigin !== filters.channelOrigin) return false;
+          if (filters.priority !== undefined && c.priority !== filters.priority) return false;
+          return true;
+        });
+        results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const total = results.length;
+        const offset = filters.offset ?? 0;
+        const limit = filters.limit ?? 25;
+        const data = results.slice(offset, offset + limit);
+        return { data, total };
+      },
+      async update(id: string, data: ConversationUpdate): Promise<Conversation | undefined> {
+        const conv = conversationCrudStore.get(id);
+        if (!conv) return undefined;
+        if (data.subject !== undefined) conv.subject = data.subject;
+        if (data.priority !== undefined) conv.priority = data.priority;
+        if (data.metadata !== undefined) conv.metadata = { ...conv.metadata, ...data.metadata };
+        // Support status/resolvedAt/snoozedUntil updates from the transition helper
+        const anyData = data as Record<string, unknown>;
+        if ('status' in anyData) conv.status = anyData.status as Conversation['status'];
+        if ('resolvedAt' in anyData) conv.resolvedAt = anyData.resolvedAt as Date | null;
+        if ('snoozedUntil' in anyData) conv.snoozedUntil = anyData.snoozedUntil as Date | null;
+        conv.updatedAt = new Date();
+        return conv;
+      },
+    },
     participants: {
       async add(conversationId, userId, role): Promise<ConversationParticipant> {
         const p: ConversationParticipant = {
@@ -134,6 +215,132 @@ export function createTestDb(): Db {
         return eventStore
           .filter((e) => e.conversationId === conversationId && e.eventType === eventType)
           .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      },
+    },
+    messages: {
+      async create(input: CreateMessageInput): Promise<Message> {
+        const timestamp = new Date();
+        const msg: Message = {
+          id: nextId(),
+          conversationId: input.conversationId,
+          senderId: input.senderId,
+          type: input.type ?? 'text',
+          visibility: input.visibility ?? 'public',
+          body: input.body,
+          bodyHtml: input.bodyHtml ?? null,
+          metadata: input.metadata ?? {},
+          attachments: input.attachments ?? [],
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        messageStore.push(msg);
+        return msg;
+      },
+      async getById(id: string): Promise<Message | undefined> {
+        return messageStore.find((m) => m.id === id);
+      },
+      async list(input: ListMessagesInput): Promise<Message[]> {
+        const filtered = messageStore
+          .filter((m) => {
+            if (m.conversationId !== input.conversationId) return false;
+            if (input.visibility && m.visibility !== input.visibility) return false;
+            return true;
+          })
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const limit = input.limit ?? 50;
+        const offset = input.offset ?? 0;
+        return filtered.slice(offset, offset + limit);
+      },
+      async search(input: SearchMessagesInput): Promise<Message[]> {
+        const query = input.query.toLowerCase();
+        const filtered = messageStore
+          .filter((m) => m.body.toLowerCase().includes(query));
+        const limit = input.limit ?? 20;
+        const offset = input.offset ?? 0;
+        return filtered.slice(offset, offset + limit);
+      },
+    },
+    labels: {
+      async create(name: string, color: string | null): Promise<Label> {
+        const label: Label = { id: nextId(), name, color, createdAt: new Date() };
+        labelStore.push(label);
+        return label;
+      },
+      async list(): Promise<Label[]> {
+        return [...labelStore].sort((a, b) => a.name.localeCompare(b.name));
+      },
+      async findByName(name: string): Promise<Label | undefined> {
+        const lower = name.toLowerCase();
+        return labelStore.find((l) => l.name.toLowerCase() === lower);
+      },
+      async addToConversation(conversationId: string, labelId: string): Promise<ConversationLabel> {
+        const existing = conversationLabelStore.find(
+          (cl) => cl.conversationId === conversationId && cl.labelId === labelId,
+        );
+        if (existing) return existing;
+        const cl: ConversationLabel = { conversationId, labelId };
+        conversationLabelStore.push(cl);
+        return cl;
+      },
+      async removeFromConversation(conversationId: string, labelId: string): Promise<void> {
+        const idx = conversationLabelStore.findIndex(
+          (cl) => cl.conversationId === conversationId && cl.labelId === labelId,
+        );
+        if (idx !== -1) conversationLabelStore.splice(idx, 1);
+      },
+      async getConversationLabels(conversationId: string): Promise<Label[]> {
+        const labelIds = conversationLabelStore
+          .filter((cl) => cl.conversationId === conversationId)
+          .map((cl) => cl.labelId);
+        return labelStore.filter((l) => labelIds.includes(l.id));
+      },
+      async getConversationsByLabel(labelId: string): Promise<string[]> {
+        return conversationLabelStore
+          .filter((cl) => cl.labelId === labelId)
+          .map((cl) => cl.conversationId);
+      },
+    },
+    cannedResponses: {
+      async create(input): Promise<CannedResponse> {
+        const cr: CannedResponse = {
+          id: nextId(),
+          title: input.title,
+          body: input.body,
+          bodyHtml: input.bodyHtml,
+          createdBy: input.createdBy,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        cannedResponseStore.push(cr);
+        return cr;
+      },
+      async getById(id: string): Promise<CannedResponse | undefined> {
+        return cannedResponseStore.find((cr) => cr.id === id);
+      },
+      async list(): Promise<CannedResponse[]> {
+        return [...cannedResponseStore].sort((a, b) => a.title.localeCompare(b.title));
+      },
+      async update(id, input): Promise<CannedResponse | undefined> {
+        const cr = cannedResponseStore.find((c) => c.id === id);
+        if (!cr) return undefined;
+        if (input.title !== undefined) cr.title = input.title;
+        if (input.body !== undefined) cr.body = input.body;
+        if (input.bodyHtml !== undefined) cr.bodyHtml = input.bodyHtml ?? null;
+        cr.updatedAt = new Date();
+        return { ...cr };
+      },
+      async delete(id: string): Promise<boolean> {
+        const idx = cannedResponseStore.findIndex((cr) => cr.id === id);
+        if (idx === -1) return false;
+        cannedResponseStore.splice(idx, 1);
+        return true;
+      },
+      async search(query: string, limit: number): Promise<CannedResponse[]> {
+        const lower = query.toLowerCase();
+        return cannedResponseStore
+          .filter((cr) => cr.title.toLowerCase().includes(lower))
+          .sort((a, b) => a.title.localeCompare(b.title))
+          .slice(0, limit);
       },
     },
   };

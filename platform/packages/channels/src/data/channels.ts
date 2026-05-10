@@ -74,9 +74,14 @@ export function updateChannel(
   const channel = db.channels.get(id);
   if (!channel) return undefined;
 
+  const filtered = Object.fromEntries(
+    Object.entries(updates).filter(([_, v]) => v !== undefined),
+  );
+  if (Object.keys(filtered).length === 0) return channel;
+
   const updated: ChannelConfig = {
     ...channel,
-    ...updates,
+    ...filtered,
     updatedAt: new Date(),
   };
   db.channels.set(id, updated);

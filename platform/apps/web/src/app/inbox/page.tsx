@@ -20,6 +20,7 @@ export default function InboxPage() {
   useEffect(() => {
     let cancelled = false;
 
+    setError(null);
     loadInboxData()
       .then((data) => {
         if (cancelled) return;

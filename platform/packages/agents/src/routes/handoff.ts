@@ -20,7 +20,7 @@ const handoffToAgentSchema = z.object({
 // Route type
 // ---------------------------------------------------------------------------
 
-type Env = { Variables: { db: DbClient } };
+type Env = { Variables: { db: DbClient; actorId: string } };
 
 /**
  * Handoff routes as a Hono app.
@@ -37,7 +37,8 @@ export const handoffRoutes = new Hono<Env>();
 handoffRoutes.post('/:id/handoff', async (c) => {
   const db = c.get('db');
   const conversationId = c.req.param('id');
-  const actorId = c.req.header('x-actor-id') ?? 'system';
+  // SECURITY: Use actorId from auth context (set by API middleware), not from headers.
+  const actorId = c.get('actorId') ?? 'system';
 
   const body = await c.req.json();
   const parsed = requestHandoffSchema.safeParse(body);
@@ -54,7 +55,7 @@ handoffRoutes.post('/:id/handoff', async (c) => {
     parsed.data.toUserId,
   );
 
-  return c.json(handoff, 201);
+  return c.json({ data: handoff }, 201);
 });
 
 // ---------------------------------------------------------------------------
@@ -64,7 +65,8 @@ handoffRoutes.post('/:id/handoff', async (c) => {
 handoffRoutes.post('/:id/handoff/agent', async (c) => {
   const db = c.get('db');
   const conversationId = c.req.param('id');
-  const actorId = c.req.header('x-actor-id') ?? 'system';
+  // SECURITY: Use actorId from auth context (set by API middleware), not from headers.
+  const actorId = c.get('actorId') ?? 'system';
 
   const body = await c.req.json();
   const parsed = handoffToAgentSchema.safeParse(body);
@@ -75,5 +77,5 @@ handoffRoutes.post('/:id/handoff/agent', async (c) => {
 
   await handoffToAgent(db, conversationId, parsed.data.agentId, actorId);
 
-  return c.json({ ok: true, conversationId, agentId: parsed.data.agentId }, 200);
+  return c.json({ ok: true }, 200);
 });

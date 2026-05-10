@@ -7,6 +7,7 @@ export async function addParticipant(
   conversationId: string,
   userId: string,
   role: ParticipantRole,
+  actorId?: string,
 ): Promise<ConversationParticipant> {
   const already = await db.participants.exists(conversationId, userId);
   if (already) {
@@ -17,7 +18,7 @@ export async function addParticipant(
 
   await db.events.create({
     conversationId,
-    actorId: userId,
+    actorId: actorId ?? userId,
     eventType: 'participant_joined',
     payload: { userId, role },
   });
@@ -30,6 +31,7 @@ export async function removeParticipant(
   db: Db,
   conversationId: string,
   userId: string,
+  actorId?: string,
 ): Promise<void> {
   const exists = await db.participants.exists(conversationId, userId);
   if (!exists) {
@@ -45,7 +47,7 @@ export async function removeParticipant(
 
   await db.events.create({
     conversationId,
-    actorId: userId,
+    actorId: actorId ?? userId,
     eventType: 'participant_left',
     payload: { userId },
   });
@@ -74,17 +76,26 @@ export async function updateParticipantRole(
   conversationId: string,
   userId: string,
   newRole: ParticipantRole,
+  actorId?: string,
 ): Promise<void> {
   const currentRole = await db.participants.getRole(conversationId, userId);
   if (currentRole === null) {
     throw new Error(`User ${userId} is not a participant in conversation ${conversationId}`);
   }
 
+  if (currentRole === 'contact') {
+    throw new Error('Cannot change the role of the contact in their own conversation');
+  }
+
+  if (currentRole === newRole) {
+    return;
+  }
+
   await db.participants.updateRole(conversationId, userId, newRole);
 
   await db.events.create({
     conversationId,
-    actorId: userId,
+    actorId: actorId ?? userId,
     eventType: 'role_changed',
     payload: { userId, fromRole: currentRole, toRole: newRole },
   });

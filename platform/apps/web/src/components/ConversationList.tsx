@@ -17,7 +17,7 @@ export function ConversationList({
 }: ConversationListProps) {
   if (isLoading) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
+      <div role="status" aria-label="Loading conversations" className="flex flex-1 flex-col items-center justify-center text-slate-400">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
         <span className="mt-2 text-sm">Loading...</span>
       </div>

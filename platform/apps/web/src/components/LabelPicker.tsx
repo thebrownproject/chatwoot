@@ -41,6 +41,7 @@ export function LabelPicker({
             )}
             {label.name}
             <button
+              aria-label={`Remove ${label.name} label`}
               onClick={() => onRemove(label.id)}
               className="rounded-full p-0.5 hover:bg-slate-100"
             >

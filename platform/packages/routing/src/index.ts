@@ -19,14 +19,15 @@ export {
 } from './data/teams.js';
 
 // Routing engine
-export { evaluate, matchConditions } from './engine/evaluator.js';
-export { executeAction, roundRobin } from './engine/assigner.js';
+export { evaluate, matchConditions, clearKeywordCache } from './engine/evaluator.js';
+export { executeAction, roundRobin, clearRoundRobinForTeam, resetRoundRobin } from './engine/assigner.js';
 
 // Snooze scheduler
 export {
   SNOOZE_JOB_NAME,
   SNOOZE_CRON,
   checkSnoozedConversations,
+  checkSnoozedConversationsDetailed,
   processSnoozeJob,
 } from './jobs/snooze-scheduler.js';
 
@@ -56,7 +57,7 @@ export type {
   RuleMatch,
   RoutingDb,
 } from './types.js';
-export type { SnoozeJobData } from './jobs/snooze-scheduler.js';
+export type { SnoozeJobData, SnoozeResult } from './jobs/snooze-scheduler.js';
 
 export {
   ruleConditionsSchema,

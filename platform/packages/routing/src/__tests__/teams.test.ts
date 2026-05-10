@@ -131,4 +131,40 @@ describe('team membership', () => {
     const removed = await removeTeamMember(db, team.id, 'nonexistent');
     expect(removed).toBe(false);
   });
+
+  it('rejects adding a duplicate member', async () => {
+    const db = createMockDb();
+    const team = await createTeam(db, { name: 'Support' });
+    await addTeamMember(db, team.id, 'user-1', 'member');
+
+    await expect(
+      addTeamMember(db, team.id, 'user-1', 'lead'),
+    ).rejects.toThrow('already a member');
+  });
+
+  it('allows same user in different teams', async () => {
+    const db = createMockDb();
+    const team1 = await createTeam(db, { name: 'Team A' });
+    const team2 = await createTeam(db, { name: 'Team B' });
+
+    const m1 = await addTeamMember(db, team1.id, 'user-1', 'member');
+    const m2 = await addTeamMember(db, team2.id, 'user-1', 'member');
+    expect(m1.teamId).toBe(team1.id);
+    expect(m2.teamId).toBe(team2.id);
+  });
+});
+
+describe('team name validation', () => {
+  it('rejects whitespace-only team name', () => {
+    const db = createMockDb();
+    expect(() => createTeam(db, { name: '   ' })).toThrow(
+      'empty or whitespace',
+    );
+  });
+
+  it('trims team name whitespace', async () => {
+    const db = createMockDb();
+    const team = await createTeam(db, { name: '  Support  ' });
+    expect(team.name).toBe('Support');
+  });
 });

@@ -8,6 +8,7 @@ import type {
 } from '../types/email.js';
 import type { EmailClient } from '../services/email-client.js';
 import { generateMessageId, buildThreadHeaders, type ThreadingDb } from './email-threading.js';
+import { sanitizeInboundHtml } from '../sanitize-html.js';
 
 /** Parse error for malformed webhook payloads */
 export class EmailParseError extends Error {
@@ -54,12 +55,16 @@ export class EmailAdapter implements ChannelAdapter {
    * Sets proper threading headers (Message-ID, In-Reply-To, References).
    */
   async deliver(message: MessageForDelivery, channel: ChannelRecord): Promise<SendResult> {
+    if (!message.senderEmail?.trim()) {
+      return { success: false, error: 'No recipient email address' };
+    }
+
     const config = channel.config;
     const messageId = generateMessageId(message.conversationId, config.domain);
     const threadHeaders = await buildThreadHeaders(this.threadingDb, message.conversationId);
 
     const outbound: OutboundEmail = {
-      to: message.senderEmail ?? '',
+      to: message.senderEmail,
       from: config.fromAddress,
       fromName: config.fromName,
       replyTo: config.replyToAddress ?? config.fromAddress,
@@ -108,14 +113,14 @@ function isSendGridPayload(payload: Record<string, unknown>): boolean {
 
 function parseSendGridPayload(payload: Record<string, unknown>): InboundEmail {
   const rawHeaders = parseRawHeaders(payload['headers'] as string);
-  const from = extractEmailAddress(payload['from'] as string);
+  const from = extractEmailAddress(payload['from'] as string).toLowerCase();
   const fromName = extractEmailName(payload['from'] as string);
 
   if (!from) {
     throw new EmailParseError('Missing or invalid "from" field in SendGrid payload');
   }
 
-  const to = parseRecipientList(payload['to'] as string | undefined);
+  const to = parseRecipientList(payload['to'] as string | undefined).map(e => e.toLowerCase());
   const subject = (payload['subject'] as string) ?? '(no subject)';
   const bodyText = (payload['text'] as string) ?? '';
   const bodyHtml = payload['html'] as string | undefined;
@@ -146,7 +151,7 @@ function isPostmarkPayload(payload: Record<string, unknown>): boolean {
 
 function parsePostmarkPayload(payload: Record<string, unknown>): InboundEmail {
   const fromFull = payload['FromFull'] as { Email?: string; Name?: string } | undefined;
-  const from = fromFull?.Email ?? extractEmailAddress((payload['From'] as string) ?? '');
+  const from = (fromFull?.Email ?? extractEmailAddress((payload['From'] as string) ?? '')).toLowerCase();
   const fromName = fromFull?.Name ?? extractEmailName((payload['From'] as string) ?? '');
 
   if (!from) {
@@ -154,7 +159,7 @@ function parsePostmarkPayload(payload: Record<string, unknown>): InboundEmail {
   }
 
   const toFull = payload['ToFull'] as Array<{ Email?: string }> | undefined;
-  const to = toFull?.map((r) => r.Email ?? '').filter(Boolean) ?? [];
+  const to = (toFull?.map((r) => r.Email ?? '').filter(Boolean) ?? []).map(e => e.toLowerCase());
 
   const subject = (payload['Subject'] as string) ?? '(no subject)';
   const bodyText = (payload['TextBody'] as string) ?? '';
@@ -193,7 +198,7 @@ function parsePostmarkHeaders(
   if (!headers) return {};
   const result: Record<string, string> = {};
   for (const h of headers) {
-    result[h.Name.toLowerCase()] = h.Value;
+    result[h.Name.toLowerCase()] = stripAngleBrackets(h.Value);
   }
   return result;
 }
@@ -253,28 +258,8 @@ function generateFallbackMessageId(): string {
   return `${crypto.randomUUID()}@inbound.local`;
 }
 
-/**
- * Strip dangerous HTML tags and attributes from inbound email HTML.
- * Removes <script>, <iframe>, <object>, <embed>, <form>, <base>,
- * and any on* event handler attributes.
- */
-export function sanitizeInboundHtml(html: string): string {
-  // Remove dangerous tags and their content
-  let sanitized = html.replace(
-    /<\s*(script|iframe|object|embed|form|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
-    '',
-  );
-  // Remove self-closing / unclosed dangerous tags
-  sanitized = sanitized.replace(
-    /<\s*(script|iframe|object|embed|form|base)\b[^>]*\/?>/gi,
-    '',
-  );
-  // Remove on* event handler attributes (onclick, onerror, onload, etc.)
-  sanitized = sanitized.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  // Remove javascript: protocol in href/src attributes
-  sanitized = sanitized.replace(/(href|src)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, '$1=""');
-  return sanitized;
-}
+// Re-export sanitizeInboundHtml so existing imports from this module continue to work
+export { sanitizeInboundHtml } from '../sanitize-html.js';
 
 function escapeHtml(text: string): string {
   return text

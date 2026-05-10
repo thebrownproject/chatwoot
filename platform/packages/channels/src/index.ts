@@ -30,7 +30,7 @@ export {
 } from './types.js';
 
 // Registry
-export { registerAdapter, getAdapter, listAdapters } from './registry.js';
+export { registerAdapter, getAdapter, listAdapters, clearAdapters } from './registry.js';
 
 // Adapters
 export { webChatAdapter } from './adapters/web-chat.js';
@@ -61,6 +61,7 @@ export { manifest } from './manifest.js';
 // ── Email Channel Adapter (PR #10) ──
 
 export { EmailAdapter, EmailParseError, sanitizeInboundHtml } from './adapters/email.js';
+export { sanitizeInboundHtmlRegex } from './sanitize-html.js';
 export {
   matchToConversation,
   generateMessageId,

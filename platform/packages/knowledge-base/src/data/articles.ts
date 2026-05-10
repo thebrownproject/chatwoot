@@ -1,23 +1,14 @@
-/**
- * Article CRUD data access.
- *
- * Supports full lifecycle: draft -> published -> archived.
- * Full-text search uses a simple in-memory approach (placeholder for tsvector).
- * View count tracking is fire-and-forget.
- */
-
 import { randomUUID } from 'node:crypto';
 import type { ArticleRecord, ArticleCreate, ArticleUpdate, ArticleStatus } from '../types.js';
 
-// ---------------------------------------------------------------------------
-// In-memory store (placeholder until db package provides Drizzle schema)
-// ---------------------------------------------------------------------------
-
+/** In-memory only. Replace with DB queries for multi-process deployment. */
 const store = new Map<string, ArticleRecord>();
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const VALID_TRANSITIONS: Record<ArticleStatus, ArticleStatus[]> = {
+  draft: ['published'],
+  published: ['archived'],
+  archived: ['draft'],
+};
 
 function slugify(title: string): string {
   const slug = title
@@ -27,17 +18,21 @@ function slugify(title: string): string {
   return slug || `article-${Date.now()}`;
 }
 
-// ---------------------------------------------------------------------------
-// CRUD operations
-// ---------------------------------------------------------------------------
-
-function uniqueSlug(_db: unknown, portalId: string, baseSlug: string): string {
+function uniqueSlug(_db: unknown, portalId: string, baseSlug: string, excludeId?: string): string {
   const existing = listArticlesByPortal(_db, portalId);
-  const slugs = new Set(existing.map((a) => a.slug));
+  const slugs = new Set(existing.filter((a) => a.id !== excludeId).map((a) => a.slug));
   if (!slugs.has(baseSlug)) return baseSlug;
   let i = 2;
   while (slugs.has(`${baseSlug}-${i}`)) i++;
   return `${baseSlug}-${i}`;
+}
+
+function requireNonEmpty(value: string, field: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${field} cannot be empty or whitespace-only`);
+  }
+  return trimmed;
 }
 
 export function createArticle(
@@ -45,10 +40,11 @@ export function createArticle(
   input: ArticleCreate,
 ): ArticleRecord {
   const now = new Date();
-  const baseSlug = input.slug || slugify(input.title);
+  const title = requireNonEmpty(input.title, 'title');
+  const content = requireNonEmpty(input.content, 'content');
+  const baseSlug = input.slug ? requireNonEmpty(input.slug, 'slug') : slugify(title);
   const slug = uniqueSlug(_db, input.portalId, baseSlug);
 
-  // Auto-assign position if not provided
   let position = input.position ?? 0;
   if (input.position === undefined) {
     const siblings = listArticlesByPortal(_db, input.portalId);
@@ -61,9 +57,9 @@ export function createArticle(
     id: randomUUID(),
     portalId: input.portalId,
     categoryId: input.categoryId ?? null,
-    title: input.title,
+    title,
     slug,
-    content: input.content,
+    content,
     contentHtml: input.contentHtml ?? null,
     status: 'draft',
     authorId: input.authorId,
@@ -127,12 +123,31 @@ export function updateArticle(
   const existing = store.get(id);
   if (!existing) return undefined;
 
+  const hasChanges = Object.keys(input).some(
+    (key) => input[key as keyof ArticleUpdate] !== undefined,
+  );
+  if (!hasChanges) return existing;
+
+  if (input.title !== undefined) {
+    requireNonEmpty(input.title, 'title');
+  }
+  if (input.content !== undefined) {
+    requireNonEmpty(input.content, 'content');
+  }
+  if (input.slug !== undefined) {
+    const trimmedSlug = requireNonEmpty(input.slug, 'slug');
+    const conflict = uniqueSlug(_db, existing.portalId, trimmedSlug, existing.id);
+    if (conflict !== trimmedSlug) {
+      throw new Error(`Slug "${trimmedSlug}" is already in use in this portal`);
+    }
+  }
+
   const updated: ArticleRecord = {
     ...existing,
     ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
-    ...(input.title !== undefined && { title: input.title }),
-    ...(input.slug !== undefined && { slug: input.slug }),
-    ...(input.content !== undefined && { content: input.content }),
+    ...(input.title !== undefined && { title: input.title.trim() }),
+    ...(input.slug !== undefined && { slug: input.slug.trim() }),
+    ...(input.content !== undefined && { content: input.content.trim() }),
     ...(input.contentHtml !== undefined && { contentHtml: input.contentHtml }),
     ...(input.position !== undefined && { position: input.position }),
     updatedAt: new Date(),
@@ -152,52 +167,57 @@ export function deleteArticle(
 // Status transitions
 // ---------------------------------------------------------------------------
 
-export function publishArticle(
+export function transitionArticle(
   _db: unknown,
   id: string,
+  targetStatus: ArticleStatus,
 ): ArticleRecord | undefined {
   const existing = store.get(id);
   if (!existing) return undefined;
-  if (existing.status === 'archived') {
-    throw new Error('Cannot publish an archived article. Unarchive to draft first.');
+
+  if (existing.status === targetStatus) return existing;
+
+  const allowed = VALID_TRANSITIONS[existing.status];
+  if (!allowed.includes(targetStatus)) {
+    throw new Error(
+      `Cannot transition from "${existing.status}" to "${targetStatus}". Allowed: ${allowed.join(', ') || 'none'}`,
+    );
   }
 
   const updated: ArticleRecord = {
     ...existing,
-    status: 'published',
+    status: targetStatus,
     updatedAt: new Date(),
   };
   store.set(id, updated);
   return updated;
+}
+
+export function publishArticle(
+  _db: unknown,
+  id: string,
+): ArticleRecord | undefined {
+  return transitionArticle(_db, id, 'published');
 }
 
 export function archiveArticle(
   _db: unknown,
   id: string,
 ): ArticleRecord | undefined {
-  const existing = store.get(id);
-  if (!existing) return undefined;
-  if (existing.status === 'draft') {
-    throw new Error('Cannot archive a draft article. Publish it first.');
-  }
+  return transitionArticle(_db, id, 'archived');
+}
 
-  const updated: ArticleRecord = {
-    ...existing,
-    status: 'archived',
-    updatedAt: new Date(),
-  };
-  store.set(id, updated);
-  return updated;
+export function unarchiveArticle(
+  _db: unknown,
+  id: string,
+): ArticleRecord | undefined {
+  return transitionArticle(_db, id, 'draft');
 }
 
 // ---------------------------------------------------------------------------
 // View count
 // ---------------------------------------------------------------------------
 
-/**
- * Increment view count. Fire-and-forget — callers should not await this
- * or block the response on it.
- */
 export function incrementViewCount(
   _db: unknown,
   id: string,
@@ -235,9 +255,6 @@ export function searchArticles(
   });
 }
 
-/**
- * Clear all articles. For testing only.
- */
 export function clearArticleStore(): void {
   store.clear();
 }

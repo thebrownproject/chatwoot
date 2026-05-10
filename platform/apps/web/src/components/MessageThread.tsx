@@ -19,7 +19,7 @@ export function MessageThread({ messages, currentUserId, isLoading }: MessageThr
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <div role="status" aria-label="Loading messages" className="flex flex-1 items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
       </div>
     );

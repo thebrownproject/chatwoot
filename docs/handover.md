@@ -1,5 +1,32 @@
 # Handover Log
 
+## [2026-05-11] -- Opus 4.7 quality sweep: 34 agents, ~240 issues fixed, ~335 tests added
+
+**What got done:**
+- Wave 1: Dispatched 24 Opus 4.7 agents (one per module target) in worktree isolation. Each found bugs, fixed them, added tests, and committed. Merged all 22 branches with changes into develop (resolved 3 merge conflicts).
+- Wave 2: Dispatched 10 Opus 4.7 agents for cross-cutting fixes that Wave 1 flagged but couldn't fix in isolation. Used fresh agents committing directly to develop.
+- Key fixes: isDrizzleDb pattern eliminated (534→192 lines), DOMPurify replacing regex sanitizer, spoofable x-actor-id replaced with auth context, WS subscription authorization, API response shape standardization, module-scoped state documented for Redis migration, all critical support flows tested e2e.
+- Security: 18 vulnerabilities fixed (XSS bypasses, cross-user notification access, auth info leaks, API key generation for wrong user types, spoofable headers, rate limiter DoS).
+- Test suite grew from ~610 to ~891 unit tests + 135 e2e tests.
+
+**Decisions made:**
+- Fresh agents (subagent_type) better than forks for review work — forks waste tokens carrying full conversation context
+- No worktrees needed for sweep work — committing directly to develop is simpler when agents don't overlap on files
+- DOMPurify (isomorphic-dompurify) chosen over regex for HTML sanitization — production-ready, handles all edge cases
+- Module-scoped state stays in-memory for now with JSDoc documenting Redis replacement — not worth the abstraction until Phase B proves the patterns
+
+**What's next:**
+1. Phase B: Provision Neon database, run drizzle-kit migrations
+2. Wire Drizzle adapters (conversations first — adapter interface already defined, just needs Drizzle implementation)
+3. Fix 5 pre-existing e2e failures (unsnoozed/reopened event mismatch, copilot LLM stub, KB error format)
+4. Connect Next.js to real API (replace mock data)
+5. Deploy to Fly.io
+
+**Blocked / needs Fraser:**
+- Neon database provisioning (needs account setup)
+- UI design direction (current scaffold is basic — Joanna's team needs polish)
+- Widget visitor token design (security decision)
+
 ## [2026-05-10] -- Codex QA merged, Node 25 fix, buildpass-ops deployment decision
 
 **What got done:**

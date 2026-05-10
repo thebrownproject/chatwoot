@@ -26,6 +26,38 @@ describe('createUser', () => {
     expect(result.name).toBe('Bob');
   });
 
+  it('rejects whitespace-only name', async () => {
+    const db = mockUserDb();
+    await expect(
+      createUser(db, { type: 'human_agent', name: '   ' }),
+    ).rejects.toThrow('User name cannot be empty');
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('trims name on create', async () => {
+    const db = mockUserDb();
+    await createUser(db, {
+      type: 'human_agent',
+      name: '  Alice  ',
+      email: 'alice@buildpass.com.au',
+    });
+    expect(db.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Alice' }),
+    );
+  });
+
+  it('normalizes email to lowercase', async () => {
+    const db = mockUserDb();
+    await createUser(db, {
+      type: 'human_agent',
+      name: 'Bob',
+      email: 'BOB@BuildPass.COM.AU',
+    });
+    expect(db.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'bob@buildpass.com.au' }),
+    );
+  });
+
   it('deduplicates contacts by email', async () => {
     const existing = makeUser({
       id: 'u-existing',
@@ -108,6 +140,18 @@ describe('getUserByEmail', () => {
     const result = await getUserByEmail(db, 'alice@buildpass.com.au');
     expect(result).toEqual(user);
   });
+
+  it('normalizes email to lowercase before lookup', async () => {
+    const db = mockUserDb();
+    await getUserByEmail(db, 'ALICE@BuildPass.COM.AU');
+    expect(db.findByEmail).toHaveBeenCalledWith('alice@buildpass.com.au');
+  });
+
+  it('trims email before lookup', async () => {
+    const db = mockUserDb();
+    await getUserByEmail(db, '  alice@buildpass.com.au  ');
+    expect(db.findByEmail).toHaveBeenCalledWith('alice@buildpass.com.au');
+  });
 });
 
 describe('getUserByClerkId', () => {
@@ -132,6 +176,40 @@ describe('updateUser', () => {
     const db = mockUserDb();
     const result = await updateUser(db, 'u-missing', { name: 'Nope' });
     expect(result).toBeNull();
+  });
+
+  it('rejects whitespace-only name on update', async () => {
+    const db = mockUserDb();
+    await expect(
+      updateUser(db, 'u-1', { name: '   ' }),
+    ).rejects.toThrow('User name cannot be empty');
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('trims name on update', async () => {
+    const db = mockUserDb({ update: vi.fn().mockResolvedValue(makeUser()) });
+    await updateUser(db, 'u-1', { name: '  Trimmed  ' });
+    expect(db.update).toHaveBeenCalledWith(
+      'u-1',
+      expect.objectContaining({ name: 'Trimmed' }),
+    );
+  });
+
+  it('normalizes email to lowercase on update', async () => {
+    const db = mockUserDb({ update: vi.fn().mockResolvedValue(makeUser()) });
+    await updateUser(db, 'u-1', { email: 'BOB@BuildPass.COM' });
+    expect(db.update).toHaveBeenCalledWith(
+      'u-1',
+      expect.objectContaining({ email: 'bob@buildpass.com' }),
+    );
+  });
+
+  it('skips db.update on empty payload', async () => {
+    const user = makeUser();
+    const db = mockUserDb({ findById: vi.fn().mockResolvedValue(user) });
+    const result = await updateUser(db, 'u-1', {});
+    expect(db.update).not.toHaveBeenCalled();
+    expect(result).toEqual(user);
   });
 });
 
@@ -226,5 +304,41 @@ describe('findOrCreateContact', () => {
     );
     expect(db.insert).toHaveBeenCalled();
     expect(result.id).toBe('u-new');
+  });
+
+  it('rejects empty email', async () => {
+    const db = mockUserDb();
+    await expect(
+      findOrCreateContact(db, ''),
+    ).rejects.toThrow('Email is required');
+  });
+
+  it('rejects whitespace-only email', async () => {
+    const db = mockUserDb();
+    await expect(
+      findOrCreateContact(db, '   '),
+    ).rejects.toThrow('Email is required');
+  });
+
+  it('normalizes email case for dedup lookup', async () => {
+    const existing = makeUser({
+      id: 'u-existing',
+      type: 'contact',
+      email: 'customer@example.com',
+    });
+    const db = mockUserDb({
+      findByEmail: vi.fn().mockResolvedValue(existing),
+    });
+    const result = await findOrCreateContact(db, 'CUSTOMER@EXAMPLE.COM');
+    expect(db.findByEmail).toHaveBeenCalledWith('customer@example.com');
+    expect(result.id).toBe('u-existing');
+  });
+
+  it('trims whitespace-only name and falls back to email', async () => {
+    const db = mockUserDb();
+    await findOrCreateContact(db, 'test@example.com', '   ');
+    expect(db.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'test@example.com' }),
+    );
   });
 });

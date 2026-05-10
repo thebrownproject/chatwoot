@@ -1,13 +1,14 @@
 # Platform Status
 
 **State:** Active
-**Last session:** 2026-05-10
+**Last session:** 2026-05-11
 **PRs merged:** 101 (124 total, including Codex QA)
 **Production path:** buildpass-ops module (`src/modules/messaging/`)
+**Test suite:** 891+ unit tests + 135 e2e tests (all passing)
 
 ## Current Focus
 
-Phase B: Wire Drizzle adapters to replace in-memory stores. All modules built, tested (610 cases), security hardened, and reviewed (30+ Opus 4.7 passes). See `docs/integration-checklist.md` for the complete Phase B/C plan.
+Phase B: Wire Drizzle adapters to replace in-memory stores. Codebase fully swept and hardened (Wave 1 + Wave 2 = 34 Opus 4.7 agent passes, ~240 issues fixed, ~335 tests added). The `isDrizzleDb` pattern is eliminated — all modules now use the clean Db adapter interface. DOMPurify, auth context, WS auth, response shapes all production-ready. See `docs/integration-checklist.md` for the complete Phase B/C plan.
 
 ## Sprint
 
@@ -31,6 +32,8 @@ Phase B: Wire Drizzle adapters to replace in-memory stores. All modules built, t
 - [x] Security hardening (30+ fixes)
 - [x] Quality sweep (30+ Opus 4.7 passes)
 - [x] Integration checklist + continuous improvement loop doc
+- [x] Opus 4.7 codebase sweep Wave 1 (24 targets, 211 issues, 315 tests)
+- [x] Opus 4.7 codebase sweep Wave 2 (10 cross-cutting fixes, DOMPurify, auth, isDrizzleDb elimination)
 
 ### Phase B: Drizzle Wiring (NEXT)
 - [ ] Set up Neon database
@@ -61,6 +64,8 @@ Phase B: Wire Drizzle adapters to replace in-memory stores. All modules built, t
 ## Key Docs
 
 - `platform/CLAUDE.md` — builder onboarding
+- `platform/docs/opus-sweep.md` — Wave 1 sweep results (24 targets, full details)
+- `platform/docs/opus-sweep-2.md` — Wave 2 sweep results (10 targets, full details)
 - `docs/integration-checklist.md` — Phase B/C plan with race conditions + wiring points
 - `docs/continuous-improvement-loop.md` — how the autonomous loop works
 - `docs/state-summary.md` — complete platform inventory

@@ -5,6 +5,7 @@ export {
   getPortalBySlug,
   listPortals,
   updatePortal,
+  deletePortal,
 } from './data/portals.js';
 
 export {
@@ -26,6 +27,8 @@ export {
   deleteArticle,
   publishArticle,
   archiveArticle,
+  unarchiveArticle,
+  transitionArticle,
   incrementViewCount,
   searchArticles,
 } from './data/articles.js';

@@ -217,6 +217,33 @@ describe('Routing and assignment', () => {
       expect(match!.targetId).toBe('senior-agent');
     });
 
+    it('matches everything when rule has empty conditions', () => {
+      const conversation: RoutableConversation = {
+        id: 'conv-1',
+        channelOrigin: 'sms',
+        subject: 'Any subject',
+      };
+
+      const rules: RoutingRule[] = [
+        {
+          id: 'rule-catchall',
+          name: 'Catch all',
+          priority: 100,
+          conditions: {},
+          action: 'assign_agent',
+          targetType: 'user',
+          targetId: 'default-agent',
+          active: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+
+      const match = p.routing.evaluate(conversation, rules);
+      expect(match).toBeTruthy();
+      expect(match!.targetId).toBe('default-agent');
+    });
+
     it('requires all conditions to match (AND logic)', () => {
       const conversation: RoutableConversation = {
         id: 'conv-1',
