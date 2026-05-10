@@ -114,4 +114,79 @@ describe('participants', () => {
     await removeParticipant(db, CONV_ID, USER_A);
     expect(await isParticipant(db, CONV_ID, USER_A)).toBe(false);
   });
+
+  it('prevents removing a contact from their conversation', async () => {
+    await addParticipant(db, CONV_ID, USER_A, 'contact');
+
+    await expect(removeParticipant(db, CONV_ID, USER_A)).rejects.toThrow(
+      /Cannot remove the contact/,
+    );
+
+    expect(await isParticipant(db, CONV_ID, USER_A)).toBe(true);
+  });
+
+  it('prevents changing the role of a contact', async () => {
+    await addParticipant(db, CONV_ID, USER_A, 'contact');
+
+    await expect(
+      updateParticipantRole(db, CONV_ID, USER_A, 'observer'),
+    ).rejects.toThrow(/Cannot change the role of the contact/);
+
+    const role = await getParticipantRole(db, CONV_ID, USER_A);
+    expect(role).toBe('contact');
+  });
+
+  it('skips no-op role update without creating event', async () => {
+    await addParticipant(db, CONV_ID, USER_A, 'observer');
+
+    const eventsBefore = db.getEvents().length;
+    await updateParticipantRole(db, CONV_ID, USER_A, 'observer');
+    const eventsAfter = db.getEvents().length;
+
+    expect(eventsAfter).toBe(eventsBefore);
+  });
+
+  it('records correct actorId when provided to addParticipant', async () => {
+    const ADMIN = '33333333-3333-3333-3333-333333333333';
+    db.seedUser(ADMIN, 'Admin', 'admin@buildpass.com.au');
+
+    await addParticipant(db, CONV_ID, USER_A, 'observer', ADMIN);
+
+    const events = db.getEvents();
+    const joinEvent = events.find((e) => e.eventType === 'participant_joined');
+    expect(joinEvent!.actorId).toBe(ADMIN);
+    expect(joinEvent!.payload).toEqual({ userId: USER_A, role: 'observer' });
+  });
+
+  it('records correct actorId when provided to removeParticipant', async () => {
+    const ADMIN = '33333333-3333-3333-3333-333333333333';
+    db.seedUser(ADMIN, 'Admin', 'admin@buildpass.com.au');
+
+    await addParticipant(db, CONV_ID, USER_A, 'observer');
+    await removeParticipant(db, CONV_ID, USER_A, ADMIN);
+
+    const events = db.getEvents();
+    const leaveEvent = events.find((e) => e.eventType === 'participant_left');
+    expect(leaveEvent!.actorId).toBe(ADMIN);
+  });
+
+  it('records correct actorId when provided to updateParticipantRole', async () => {
+    const ADMIN = '33333333-3333-3333-3333-333333333333';
+    db.seedUser(ADMIN, 'Admin', 'admin@buildpass.com.au');
+
+    await addParticipant(db, CONV_ID, USER_A, 'observer');
+    await updateParticipantRole(db, CONV_ID, USER_A, 'copilot', ADMIN);
+
+    const events = db.getEvents();
+    const roleEvent = events.find((e) => e.eventType === 'role_changed');
+    expect(roleEvent!.actorId).toBe(ADMIN);
+  });
+
+  it('defaults actorId to userId when not provided', async () => {
+    await addParticipant(db, CONV_ID, USER_A, 'observer');
+
+    const events = db.getEvents();
+    const joinEvent = events.find((e) => e.eventType === 'participant_joined');
+    expect(joinEvent!.actorId).toBe(USER_A);
+  });
 });
