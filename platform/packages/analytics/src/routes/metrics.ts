@@ -18,13 +18,28 @@ interface Env {
   };
 }
 
-function parseDateRange(c: { req: { query: (key: string) => string | undefined } }) {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseDateRange(c: { req: { query: (key: string) => string | undefined } }): {
+  from: Date | undefined;
+  to: Date | undefined;
+  error?: string;
+} {
   const from = c.req.query('from');
   const to = c.req.query('to');
   const fromDate = from ? new Date(from) : undefined;
   const toDate = to ? new Date(to) : undefined;
-  if (fromDate && isNaN(fromDate.getTime())) return { from: undefined, to: undefined };
-  if (toDate && isNaN(toDate.getTime())) return { from: undefined, to: undefined };
+
+  if (fromDate && isNaN(fromDate.getTime())) {
+    return { from: undefined, to: undefined, error: 'Invalid "from" date' };
+  }
+  if (toDate && isNaN(toDate.getTime())) {
+    return { from: undefined, to: undefined, error: 'Invalid "to" date' };
+  }
+  if (fromDate && toDate && fromDate > toDate) {
+    return { from: undefined, to: undefined, error: '"from" must be before "to"' };
+  }
+
   return { from: fromDate, to: toDate };
 }
 
@@ -35,6 +50,7 @@ export function createAnalyticsRoutes() {
     try {
       const db = c.get('db');
       const dateRange = parseDateRange(c);
+      if (dateRange.error) return c.json({ error: dateRange.error }, 400);
       const metrics = await getConversationMetrics(db, dateRange);
       const sla = await getSlaStats(db, dateRange);
       return c.json({
@@ -54,8 +70,13 @@ export function createAnalyticsRoutes() {
     try {
       const db = c.get('db');
       const dateRange = parseDateRange(c);
+      if (dateRange.error) return c.json({ error: dateRange.error }, 400);
       const channel = c.req.query('channel');
       const status = c.req.query('status');
+      const validStatuses = ['open', 'pending', 'snoozed', 'resolved'];
+      if (status && !validStatuses.includes(status)) {
+        return c.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, 400);
+      }
       const metrics = await getConversationMetrics(db, { ...dateRange, channel, status });
       return c.json({ data: metrics });
     } catch {
@@ -67,6 +88,7 @@ export function createAnalyticsRoutes() {
     try {
       const db = c.get('db');
       const dateRange = parseDateRange(c);
+      if (dateRange.error) return c.json({ error: dateRange.error }, 400);
       const agentRows = await db.query<{ assignee_id: string }>(
         `SELECT DISTINCT assignee_id FROM conversations WHERE assignee_id IS NOT NULL`,
         [],
@@ -84,7 +106,9 @@ export function createAnalyticsRoutes() {
     try {
       const db = c.get('db');
       const agentId = c.req.param('id');
+      if (!UUID_RE.test(agentId)) return c.json({ error: 'Invalid agent ID' }, 400);
       const dateRange = parseDateRange(c);
+      if (dateRange.error) return c.json({ error: dateRange.error }, 400);
       const metrics = await getAgentMetrics(db, agentId, dateRange);
       return c.json({ data: metrics });
     } catch {
@@ -96,6 +120,7 @@ export function createAnalyticsRoutes() {
     try {
       const db = c.get('db');
       const dateRange = parseDateRange(c);
+      if (dateRange.error) return c.json({ error: dateRange.error }, 400);
       const teamRows = await db.query<{ id: string }>(`SELECT id FROM teams`, []);
       const teamMetrics = await Promise.all(
         teamRows.map((row) => getTeamMetrics(db, row.id, dateRange)),
@@ -110,6 +135,7 @@ export function createAnalyticsRoutes() {
     try {
       const db = c.get('db');
       const dateRange = parseDateRange(c);
+      if (dateRange.error) return c.json({ error: dateRange.error }, 400);
       const metrics = await getChannelMetrics(db, dateRange);
       return c.json({ data: metrics });
     } catch {
@@ -121,6 +147,7 @@ export function createAnalyticsRoutes() {
     try {
       const db = c.get('db');
       const dateRange = parseDateRange(c);
+      if (dateRange.error) return c.json({ error: dateRange.error }, 400);
       const stats = await getSlaStats(db, dateRange);
       return c.json({ data: stats });
     } catch {
