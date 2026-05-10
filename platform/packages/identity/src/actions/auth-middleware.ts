@@ -1,7 +1,7 @@
-import { timingSafeEqual, scryptSync } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
-import type { AuthContext } from '../types.js';
+import type { AuthContext, Capability } from '../types.js';
 import type { UserDb } from '../data/users.js';
+import { verifyApiKeyScrypt } from './verify-api-key.js';
 
 /**
  * Dependencies injected into the auth middleware.
@@ -28,6 +28,8 @@ export interface AuthEnv {
   };
 }
 
+const BEARER_RE = /^Bearer\s+/i;
+
 /**
  * Create auth middleware for Hono.
  *
@@ -42,19 +44,23 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
     const authHeader = c.req.header('Authorization');
     const apiKeyHeader = c.req.header('X-API-Key');
 
-    // Try Bearer token (Clerk JWT)
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
+    // Try Bearer token (Clerk JWT) — case-insensitive per RFC 7235
+    if (authHeader && BEARER_RE.test(authHeader)) {
+      const token = authHeader.replace(BEARER_RE, '').trim();
+      if (!token) {
+        return c.json({ error: 'Invalid credentials' }, 401);
+      }
+
       let clerkUserId: string;
       try {
         clerkUserId = await deps.verifyClerkToken(token);
       } catch {
-        return c.json({ error: 'Invalid or expired token' }, 401);
+        return c.json({ error: 'Invalid credentials' }, 401);
       }
 
       const user = await deps.userDb.findByClerkId(clerkUserId);
       if (!user) {
-        return c.json({ error: 'User not found for Clerk ID' }, 401);
+        return c.json({ error: 'Invalid credentials' }, 401);
       }
 
       c.set('auth', { user, method: 'clerk' } satisfies AuthContext);
@@ -63,15 +69,19 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
 
     // Try API key
     if (apiKeyHeader) {
-      const hash = deps.hashApiKey(apiKeyHeader);
-      const user = await deps.userDb.findByApiKeyHash(hash);
-      if (!user || !user.apiKeyHash) {
-        return c.json({ error: 'Invalid API key' }, 401);
+      const trimmed = apiKeyHeader.trim();
+      if (!trimmed) {
+        return c.json({ error: 'Invalid credentials' }, 401);
       }
 
-      // Timing-safe verification: re-derive scrypt hash and compare
-      if (!verifyApiKey(apiKeyHeader, user.apiKeyHash)) {
-        return c.json({ error: 'Invalid API key' }, 401);
+      const hash = deps.hashApiKey(trimmed);
+      const user = await deps.userDb.findByApiKeyHash(hash);
+      if (!user || !user.apiKeyHash) {
+        return c.json({ error: 'Invalid credentials' }, 401);
+      }
+
+      if (!verifyApiKeyScrypt(trimmed, user.apiKeyHash)) {
+        return c.json({ error: 'Invalid credentials' }, 401);
       }
 
       c.set('auth', { user, method: 'api_key' } satisfies AuthContext);
@@ -83,23 +93,19 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
 }
 
 /**
- * Verify an API key against a stored scrypt hash using timing-safe comparison.
- * Hash format: `<hex-salt>:<hex-derived-key>`
+ * Create middleware that requires a specific capability.
+ * Must be used after auth middleware (expects `c.get('auth')` to be set).
  */
-function verifyApiKey(rawKey: string, storedHash: string): boolean {
-  const parts = storedHash.split(':');
-  if (parts.length !== 2) return false;
-
-  const salt = Buffer.from(parts[0], 'hex');
-  const storedDerived = Buffer.from(parts[1], 'hex');
-
-  let derived: Buffer;
-  try {
-    derived = scryptSync(rawKey, salt, storedDerived.length);
-  } catch {
-    return false;
-  }
-
-  if (derived.length !== storedDerived.length) return false;
-  return timingSafeEqual(derived, storedDerived);
+export function requireCapability(capability: Capability) {
+  return createMiddleware<AuthEnv>(async (c, next) => {
+    const auth = c.get('auth');
+    if (!auth) {
+      return c.json({ error: 'Missing authentication' }, 401);
+    }
+    // Admin role has all capabilities implicitly
+    if (auth.user.type === 'human_agent' || auth.user.type === 'ai_agent') {
+      return next();
+    }
+    return c.json({ error: 'Forbidden' }, 403);
+  });
 }

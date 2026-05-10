@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Hono } from 'hono';
 import {
   createAuthMiddleware,
+  requireCapability,
   type AuthMiddlewareDeps,
   type AuthEnv,
 } from '../actions/auth-middleware.js';
@@ -68,10 +69,10 @@ describe('auth middleware', () => {
     expect(res.status).toBe(401);
 
     const body = await res.json();
-    expect(body.error).toBe('Invalid or expired token');
+    expect(body.error).toBe('Invalid credentials');
   });
 
-  it('returns 401 when Clerk user not found in DB', async () => {
+  it('returns generic error when Clerk user not found (no info leak)', async () => {
     const deps: AuthMiddlewareDeps = {
       userDb: mockUserDb(),
       verifyClerkToken: vi.fn().mockResolvedValue('clerk_unknown'),
@@ -85,7 +86,8 @@ describe('auth middleware', () => {
     expect(res.status).toBe(401);
 
     const body = await res.json();
-    expect(body.error).toBe('User not found for Clerk ID');
+    // Must NOT reveal "User not found for Clerk ID" — that leaks user existence
+    expect(body.error).toBe('Invalid credentials');
   });
 
   it('authenticates with valid X-API-Key', async () => {
@@ -134,7 +136,7 @@ describe('auth middleware', () => {
     expect(res.status).toBe(401);
 
     const body = await res.json();
-    expect(body.error).toBe('Invalid API key');
+    expect(body.error).toBe('Invalid credentials');
   });
 
   it('returns 401 when stored hash is not scrypt format', async () => {
@@ -181,5 +183,131 @@ describe('auth middleware', () => {
     const body = await res.json();
     expect(body.method).toBe('clerk');
     expect(deps.hashApiKey).not.toHaveBeenCalled();
+  });
+
+  // --- New tests ---
+
+  it('handles case-insensitive Bearer prefix (RFC 7235)', async () => {
+    const user = makeUser({ clerkId: 'clerk_abc' });
+    const deps: AuthMiddlewareDeps = {
+      userDb: mockUserDb({
+        findByClerkId: vi.fn().mockResolvedValue(user),
+      }),
+      verifyClerkToken: vi.fn().mockResolvedValue('clerk_abc'),
+      hashApiKey: vi.fn(),
+    };
+    const app = createTestApp(deps);
+
+    const res = await app.request('/protected', {
+      headers: { Authorization: 'bearer valid-jwt-token' },
+    });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.method).toBe('clerk');
+  });
+
+  it('returns 401 for empty Bearer token', async () => {
+    const deps: AuthMiddlewareDeps = {
+      userDb: mockUserDb(),
+      verifyClerkToken: vi.fn(),
+      hashApiKey: vi.fn(),
+    };
+    const app = createTestApp(deps);
+
+    const res = await app.request('/protected', {
+      headers: { Authorization: 'Bearer ' },
+    });
+    expect(res.status).toBe(401);
+    expect(deps.verifyClerkToken).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 for whitespace-only API key', async () => {
+    const deps: AuthMiddlewareDeps = {
+      userDb: mockUserDb(),
+      verifyClerkToken: vi.fn(),
+      hashApiKey: vi.fn(),
+    };
+    const app = createTestApp(deps);
+
+    const res = await app.request('/protected', {
+      headers: { 'X-API-Key': '   ' },
+    });
+    expect(res.status).toBe(401);
+    expect(deps.hashApiKey).not.toHaveBeenCalled();
+  });
+
+  it('uses consistent error messages (no info leaking)', async () => {
+    const deps: AuthMiddlewareDeps = {
+      userDb: mockUserDb(),
+      verifyClerkToken: vi.fn().mockRejectedValue(new Error('expired')),
+      hashApiKey: vi.fn(),
+    };
+    const app = createTestApp(deps);
+
+    const res1 = await app.request('/protected', {
+      headers: { Authorization: 'Bearer expired-token' },
+    });
+    const body1 = await res1.json();
+
+    // Reset for user-not-found case
+    const deps2: AuthMiddlewareDeps = {
+      userDb: mockUserDb(),
+      verifyClerkToken: vi.fn().mockResolvedValue('clerk_unknown'),
+      hashApiKey: vi.fn(),
+    };
+    const app2 = createTestApp(deps2);
+    const res2 = await app2.request('/protected', {
+      headers: { Authorization: 'Bearer valid-but-unknown' },
+    });
+    const body2 = await res2.json();
+
+    // Both should return the same generic message
+    expect(body1.error).toBe(body2.error);
+    expect(body1.error).toBe('Invalid credentials');
+  });
+});
+
+describe('requireCapability', () => {
+  it('allows agent users through', async () => {
+    const user = makeUser({ type: 'human_agent' });
+    const deps: AuthMiddlewareDeps = {
+      userDb: mockUserDb({
+        findByClerkId: vi.fn().mockResolvedValue(user),
+      }),
+      verifyClerkToken: vi.fn().mockResolvedValue('clerk_abc'),
+      hashApiKey: vi.fn(),
+    };
+
+    const app = new Hono<AuthEnv>();
+    app.use('/*', createAuthMiddleware(deps));
+    app.use('/*', requireCapability('assign'));
+    app.get('/protected', (c) => c.json({ ok: true }));
+
+    const res = await app.request('/protected', {
+      headers: { Authorization: 'Bearer jwt' },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('blocks contact users', async () => {
+    const user = makeUser({ type: 'contact' });
+    const deps: AuthMiddlewareDeps = {
+      userDb: mockUserDb({
+        findByClerkId: vi.fn().mockResolvedValue(user),
+      }),
+      verifyClerkToken: vi.fn().mockResolvedValue('clerk_contact'),
+      hashApiKey: vi.fn(),
+    };
+
+    const app = new Hono<AuthEnv>();
+    app.use('/*', createAuthMiddleware(deps));
+    app.use('/*', requireCapability('assign'));
+    app.get('/protected', (c) => c.json({ ok: true }));
+
+    const res = await app.request('/protected', {
+      headers: { Authorization: 'Bearer jwt' },
+    });
+    expect(res.status).toBe(403);
   });
 });
