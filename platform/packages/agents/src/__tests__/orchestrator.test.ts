@@ -164,6 +164,53 @@ describe('AgentOrchestrator.processMessage', () => {
       orchestrator.processMessage(db, 'nonexistent', 'conv-1', testMessage),
     ).rejects.toThrow('Agent not found');
   });
+
+  it('throws if agent response content is empty', async () => {
+    const agentId = await setupAgent();
+
+    const handler: AgentHandler = async () => ({
+      action: 'respond',
+      content: '',
+    });
+
+    const orchestrator = new AgentOrchestrator(handler);
+    await expect(
+      orchestrator.processMessage(db, agentId, 'conv-1', testMessage),
+    ).rejects.toThrow('Agent response content must not be empty');
+  });
+
+  it('throws if agent response content is whitespace-only', async () => {
+    const agentId = await setupAgent();
+
+    const handler: AgentHandler = async () => ({
+      action: 'respond',
+      content: '   ',
+    });
+
+    const orchestrator = new AgentOrchestrator(handler);
+    await expect(
+      orchestrator.processMessage(db, agentId, 'conv-1', testMessage),
+    ).rejects.toThrow('Agent response content must not be empty');
+  });
+
+  it('does not create events when response content is empty', async () => {
+    const agentId = await setupAgent();
+
+    const handler: AgentHandler = async () => ({
+      action: 'respond',
+      content: '',
+    });
+
+    const orchestrator = new AgentOrchestrator(handler);
+    try {
+      await orchestrator.processMessage(db, agentId, 'conv-1', testMessage);
+    } catch {
+      // expected
+    }
+
+    const events = _getEvents();
+    expect(events.filter((e) => e.eventType === 'agent_responded')).toHaveLength(0);
+  });
 });
 
 describe('AgentOrchestrator.buildContext', () => {

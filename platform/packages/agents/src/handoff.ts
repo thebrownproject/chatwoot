@@ -109,6 +109,10 @@ export async function handoffToAgent(
   agentId: string,
   fromUserId: string,
 ): Promise<void> {
+  if (agentId === fromUserId) {
+    throw new Error('Cannot hand off to self');
+  }
+
   assignments.set(conversationId, { assigneeId: agentId });
 
   events.push({

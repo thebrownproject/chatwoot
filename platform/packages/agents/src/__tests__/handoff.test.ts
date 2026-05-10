@@ -191,4 +191,10 @@ describe('self-handoff prevention', () => {
       handoffAgentToAgent(db, 'conv-1', 'agent-ron', 'agent-ron', 'loop'),
     ).rejects.toThrow('Cannot hand off to self');
   });
+
+  it('handoffToAgent rejects handoff to self', async () => {
+    await expect(
+      handoffToAgent(db, 'conv-1', 'agent-ron', 'agent-ron'),
+    ).rejects.toThrow('Cannot hand off to self');
+  });
 });

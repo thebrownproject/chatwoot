@@ -54,7 +54,7 @@ handoffRoutes.post('/:id/handoff', async (c) => {
     parsed.data.toUserId,
   );
 
-  return c.json(handoff, 201);
+  return c.json({ data: handoff }, 201);
 });
 
 // ---------------------------------------------------------------------------

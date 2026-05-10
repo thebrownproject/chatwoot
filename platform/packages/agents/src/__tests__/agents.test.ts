@@ -31,6 +31,40 @@ describe('registerAgent', () => {
     expect(agent.tools).toEqual([]);
   });
 
+  it('rejects whitespace-only name', async () => {
+    await expect(
+      registerAgent(db, {
+        name: '   ',
+        model: 'claude-sonnet-4-20250514',
+        capabilities: ['respond'],
+        instructions: 'Be Ron.',
+      }),
+    ).rejects.toThrow('Agent name must not be empty');
+  });
+
+  it('rejects whitespace-only instructions', async () => {
+    await expect(
+      registerAgent(db, {
+        name: 'Ron',
+        model: 'claude-sonnet-4-20250514',
+        capabilities: ['respond'],
+        instructions: '   ',
+      }),
+    ).rejects.toThrow('Agent instructions must not be empty');
+  });
+
+  it('trims name and instructions', async () => {
+    const agent = await registerAgent(db, {
+      name: '  Ron Swanson  ',
+      model: 'claude-sonnet-4-20250514',
+      capabilities: ['respond'],
+      instructions: '  You are Ron.  ',
+    });
+
+    expect(agent.name).toBe('Ron Swanson');
+    expect(agent.instructions).toBe('You are Ron.');
+  });
+
   it('stores tools when provided', async () => {
     const agent = await registerAgent(db, {
       name: 'Toolbot',
@@ -143,5 +177,31 @@ describe('updateAgentConfig', () => {
   it('returns undefined for unknown ID', async () => {
     const result = await updateAgentConfig(db, 'nonexistent', { name: 'X' });
     expect(result).toBeUndefined();
+  });
+
+  it('rejects whitespace-only name on update', async () => {
+    const agent = await registerAgent(db, {
+      name: 'Ron',
+      model: 'model',
+      capabilities: ['respond'],
+      instructions: 'test',
+    });
+
+    await expect(
+      updateAgentConfig(db, agent.id, { name: '   ' }),
+    ).rejects.toThrow('Agent name must not be empty');
+  });
+
+  it('rejects whitespace-only instructions on update', async () => {
+    const agent = await registerAgent(db, {
+      name: 'Ron',
+      model: 'model',
+      capabilities: ['respond'],
+      instructions: 'test',
+    });
+
+    await expect(
+      updateAgentConfig(db, agent.id, { instructions: '   ' }),
+    ).rejects.toThrow('Agent instructions must not be empty');
   });
 });
