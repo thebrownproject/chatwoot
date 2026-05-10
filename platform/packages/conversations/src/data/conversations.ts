@@ -1,139 +1,12 @@
-import { and, desc, eq } from 'drizzle-orm';
-import { conversationEvents, conversations } from '@buildpass/db';
+import type { Db } from './db.js';
 import type {
   Conversation,
   ConversationCreate,
   ConversationEvent,
   ConversationFilters,
   ConversationUpdate,
-  DbClient,
 } from '../types.js';
 import { transitionConversation } from './status-machine.js';
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/** Monotonically increasing display ID counter (in-memory stub). */
-let displayIdCounter = 0;
-
-/** In-memory store for development/testing. Replaced by Drizzle queries against @buildpass/db. */
-const store = {
-  conversations: new Map<string, Conversation>(),
-  events: new Map<string, ConversationEvent[]>(),
-};
-
-type DrizzleDb = {
-  insert: (table: unknown) => {
-    values: (values: unknown) => {
-      returning: () => Promise<unknown[]>;
-    };
-  };
-  select: (...args: unknown[]) => {
-    from: (table: unknown) => SelectQuery;
-  };
-  update: (table: unknown) => {
-    set: (values: unknown) => {
-      where: (condition: unknown) => SelectQuery & {
-        returning: () => Promise<unknown[]>;
-      };
-    };
-  };
-};
-
-type SelectQuery = PromiseLike<unknown[]> & {
-  where: (condition: unknown) => SelectQuery;
-  orderBy: (...columns: unknown[]) => SelectOrderedQuery;
-  limit: (limit: number) => Promise<unknown[]>;
-};
-
-type SelectOrderedQuery = PromiseLike<unknown[]> & {
-  limit: (limit: number) => {
-    offset: (offset: number) => Promise<unknown[]>;
-  };
-};
-
-function isDrizzleDb(db: DbClient): db is DbClient & DrizzleDb {
-  const candidate = db as Partial<DrizzleDb>;
-  return (
-    typeof candidate.insert === 'function' &&
-    typeof candidate.select === 'function' &&
-    typeof candidate.update === 'function'
-  );
-}
-
-function toConversation(row: typeof conversations.$inferSelect): Conversation {
-  return {
-    ...row,
-    metadata: (row.metadata ?? {}) as Record<string, unknown>,
-  };
-}
-
-function toConversationEvent(row: typeof conversationEvents.$inferSelect): ConversationEvent {
-  return {
-    ...row,
-    eventType: row.eventType as ConversationEvent['eventType'],
-    payload: (row.payload ?? {}) as Record<string, unknown>,
-  };
-}
-
-function nextDisplayId(): number {
-  displayIdCounter += 1;
-  return displayIdCounter;
-}
-
-function generateId(): string {
-  return crypto.randomUUID();
-}
-
-function now(): Date {
-  return new Date();
-}
-
-/** Reset internal state (for tests only). */
-export function _resetStore(): void {
-  store.conversations.clear();
-  store.events.clear();
-  displayIdCounter = 0;
-}
-
-// ---------------------------------------------------------------------------
-// Event persistence helper
-// ---------------------------------------------------------------------------
-
-async function createEvent(
-  db: DbClient,
-  data: {
-    conversationId: string;
-    actorId: string;
-    eventType: string;
-    payload: Record<string, unknown>;
-  },
-): Promise<ConversationEvent> {
-  if (isDrizzleDb(db)) {
-    const [event] = (await db
-      .insert(conversationEvents)
-      .values(data)
-      .returning()) as Array<typeof conversationEvents.$inferSelect>;
-    if (!event) throw new Error('Failed to create conversation event');
-    return toConversationEvent(event);
-  }
-
-  const event: ConversationEvent = {
-    id: generateId(),
-    conversationId: data.conversationId,
-    actorId: data.actorId,
-    eventType: data.eventType as ConversationEvent['eventType'],
-    payload: data.payload,
-    createdAt: now(),
-  };
-
-  const existing = store.events.get(data.conversationId) ?? [];
-  existing.push(event);
-  store.events.set(data.conversationId, existing);
-
-  return event;
-}
 
 // ---------------------------------------------------------------------------
 // Transition helper (shared by resolve/reopen/snooze/unsnooze)
@@ -144,46 +17,13 @@ type TransitionResult =
   | { ok: false; error: string };
 
 async function applyTransition(
-  db: DbClient,
+  db: Db,
   id: string,
   actorId: string,
   newStatus: Conversation['status'],
   snoozedUntil?: Date,
 ): Promise<TransitionResult> {
-  if (isDrizzleDb(db)) {
-    const conv = await getConversationById(db, id);
-    if (!conv) return { ok: false, error: 'Conversation not found' };
-
-    const result = await transitionConversation({
-      conversationId: id,
-      actorId,
-      currentStatus: conv.status,
-      newStatus,
-      snoozedUntil,
-      onUpdate: async (update) => {
-        await db
-          .update(conversations)
-          .set({
-            status: update.status,
-            resolvedAt: update.resolvedAt,
-            snoozedUntil: update.snoozedUntil,
-          })
-          .where(eq(conversations.id, id));
-      },
-      onEvent: async (event) => {
-        await createEvent(db, event);
-      },
-    });
-
-    if (!result.ok) return result;
-
-    const updated = await getConversationById(db, id);
-    return updated
-      ? { ok: true, conversation: updated }
-      : { ok: false, error: 'Conversation not found' };
-  }
-
-  const conv = store.conversations.get(id);
+  const conv = await db.conversationCrud.getById(id);
   if (!conv) return { ok: false, error: 'Conversation not found' };
 
   const result = await transitionConversation({
@@ -193,18 +33,28 @@ async function applyTransition(
     newStatus,
     snoozedUntil,
     onUpdate: async (update) => {
-      conv.status = update.status;
-      conv.resolvedAt = update.resolvedAt;
-      conv.snoozedUntil = update.snoozedUntil;
-      conv.updatedAt = now();
+      await db.conversationCrud.update(id, {
+        status: update.status,
+        resolvedAt: update.resolvedAt,
+        snoozedUntil: update.snoozedUntil,
+      } as any);
     },
     onEvent: async (event) => {
-      await createEvent(db, event);
+      await db.events.create({
+        conversationId: event.conversationId,
+        actorId: event.actorId,
+        eventType: event.eventType as ConversationEvent['eventType'],
+        payload: event.payload,
+      });
     },
   });
 
   if (!result.ok) return result;
-  return { ok: true, conversation: conv };
+
+  const updated = await db.conversationCrud.getById(id);
+  return updated
+    ? { ok: true, conversation: updated }
+    : { ok: false, error: 'Conversation not found' };
 }
 
 // ---------------------------------------------------------------------------
@@ -215,55 +65,13 @@ async function applyTransition(
  * Create a new conversation with status=open and an initial "created" event.
  */
 export async function createConversation(
-  db: DbClient,
+  db: Db,
   data: ConversationCreate,
 ): Promise<Conversation> {
-  if (isDrizzleDb(db)) {
-    const [row] = (await db
-      .insert(conversations)
-      .values({
-        channelOrigin: data.channelOrigin,
-        assigneeId: data.assigneeId ?? null,
-        subject: data.subject ?? null,
-        priority: data.priority ?? 'medium',
-        metadata: data.metadata ?? {},
-      })
-      .returning()) as Array<typeof conversations.$inferSelect>;
-    if (!row) throw new Error('Failed to create conversation');
+  const conversation = await db.conversationCrud.create(data);
 
-    const conversation = toConversation(row);
-    await createEvent(db, {
-      conversationId: conversation.id,
-      actorId: data.actorId ?? 'system',
-      eventType: 'created',
-      payload: { channelOrigin: data.channelOrigin },
-    });
-    return conversation;
-  }
-
-  const id = generateId();
-  const timestamp = now();
-
-  const conversation: Conversation = {
-    id,
-    displayId: nextDisplayId(),
-    status: 'open',
-    channelOrigin: data.channelOrigin,
-    assigneeId: data.assigneeId ?? null,
-    subject: data.subject ?? null,
-    priority: data.priority ?? 'medium',
-    snoozedUntil: null,
-    firstReplyAt: null,
-    resolvedAt: null,
-    metadata: data.metadata ?? {},
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-
-  store.conversations.set(id, conversation);
-
-  await createEvent(db, {
-    conversationId: id,
+  await db.events.create({
+    conversationId: conversation.id,
     actorId: data.actorId ?? 'system',
     eventType: 'created',
     payload: { channelOrigin: data.channelOrigin },
@@ -276,96 +84,30 @@ export async function createConversation(
  * Get a conversation by its UUID.
  */
 export async function getConversationById(
-  db: DbClient,
+  db: Db,
   id: string,
 ): Promise<Conversation | undefined> {
-  if (isDrizzleDb(db)) {
-    const [row] = (await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, id))
-      .limit(1)) as Array<typeof conversations.$inferSelect>;
-    return row ? toConversation(row) : undefined;
-  }
-
-  return store.conversations.get(id);
+  return db.conversationCrud.getById(id);
 }
 
 /**
  * Get a conversation by its human-readable display number.
  */
 export async function getConversationByDisplayId(
-  db: DbClient,
+  db: Db,
   displayId: number,
 ): Promise<Conversation | undefined> {
-  if (isDrizzleDb(db)) {
-    const [row] = (await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.displayId, displayId))
-      .limit(1)) as Array<typeof conversations.$inferSelect>;
-    return row ? toConversation(row) : undefined;
-  }
-
-  for (const conv of store.conversations.values()) {
-    if (conv.displayId === displayId) return conv;
-  }
-  return undefined;
+  return db.conversationCrud.getByDisplayId(displayId);
 }
 
 /**
  * List conversations with optional filters and pagination.
  */
 export async function listConversations(
-  db: DbClient,
+  db: Db,
   filters: ConversationFilters = {},
 ): Promise<{ data: Conversation[]; total: number }> {
-  if (isDrizzleDb(db)) {
-    const conditions = [];
-    if (filters.status !== undefined) conditions.push(eq(conversations.status, filters.status));
-    if (filters.assigneeId !== undefined) {
-      conditions.push(eq(conversations.assigneeId, filters.assigneeId));
-    }
-    if (filters.channelOrigin !== undefined) {
-      conditions.push(eq(conversations.channelOrigin, filters.channelOrigin));
-    }
-    if (filters.priority !== undefined) conditions.push(eq(conversations.priority, filters.priority));
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const baseQuery = db.select().from(conversations);
-    const rows = (await (where ? baseQuery.where(where) : baseQuery)
-      .orderBy(desc(conversations.createdAt))
-      .limit(filters.limit ?? 25)
-      .offset(filters.offset ?? 0)) as Array<typeof conversations.$inferSelect>;
-
-    const totalRows = (await (where
-      ? db.select({ id: conversations.id }).from(conversations).where(where)
-      : db.select({ id: conversations.id }).from(conversations))) as unknown[];
-
-    return {
-      data: rows.map(toConversation),
-      total: totalRows.length,
-    };
-  }
-
-  const results = [...store.conversations.values()].filter((c) => {
-    if (filters.status !== undefined && c.status !== filters.status) return false;
-    if (filters.assigneeId !== undefined && c.assigneeId !== filters.assigneeId) return false;
-    if (filters.channelOrigin !== undefined && c.channelOrigin !== filters.channelOrigin)
-      return false;
-    if (filters.priority !== undefined && c.priority !== filters.priority) return false;
-    return true;
-  });
-
-  // Sort by createdAt descending (newest first)
-  results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-  const total = results.length;
-  const offset = filters.offset ?? 0;
-  const limit = filters.limit ?? 25;
-  const data = results.slice(offset, offset + limit);
-
-  return { data, total };
+  return db.conversationCrud.list(filters);
 }
 
 /**
@@ -373,7 +115,7 @@ export async function listConversations(
  * Use assignConversation() to change assignment; it handles events and participants.
  */
 export async function updateConversation(
-  db: DbClient,
+  db: Db,
   id: string,
   data: ConversationUpdate,
   actorId?: string,
@@ -384,71 +126,29 @@ export async function updateConversation(
   if (data.metadata !== undefined) changes.metadata = data.metadata;
 
   if (Object.keys(changes).length === 0) {
-    return getConversationById(db, id);
+    return db.conversationCrud.getById(id);
   }
 
-  if (isDrizzleDb(db)) {
-    const existing = await getConversationById(db, id);
-    if (!existing) return undefined;
-
-    const dbChanges: Record<string, unknown> = {};
-    if (data.subject !== undefined) dbChanges.subject = data.subject;
-    if (data.priority !== undefined) dbChanges.priority = data.priority;
-    if (data.metadata !== undefined) dbChanges.metadata = { ...existing.metadata, ...data.metadata };
-
-    const [row] = (await db
-      .update(conversations)
-      .set(dbChanges)
-      .where(eq(conversations.id, id))
-      .returning()) as Array<typeof conversations.$inferSelect>;
-
-    if (row && actorId) {
-      await createEvent(db, {
-        conversationId: id,
-        actorId,
-        eventType: 'status_changed',
-        payload: { changes },
-      });
-    }
-
-    return row ? toConversation(row) : undefined;
-  }
-
-  const conv = store.conversations.get(id);
-  if (!conv) return undefined;
-
-  const previousValues: Record<string, unknown> = {};
-  if (data.subject !== undefined) {
-    previousValues.subject = conv.subject;
-    conv.subject = data.subject;
-  }
-  if (data.priority !== undefined) {
-    previousValues.priority = conv.priority;
-    conv.priority = data.priority;
-  }
-  if (data.metadata !== undefined) {
-    previousValues.metadata = { ...conv.metadata };
-    conv.metadata = { ...conv.metadata, ...data.metadata };
-  }
-  conv.updatedAt = now();
+  const updated = await db.conversationCrud.update(id, data);
+  if (!updated) return undefined;
 
   if (actorId) {
-    await createEvent(db, {
+    await db.events.create({
       conversationId: id,
       actorId,
       eventType: 'status_changed',
-      payload: { changes, previousValues },
+      payload: { changes },
     });
   }
 
-  return conv;
+  return updated;
 }
 
 /**
  * Resolve a conversation: set status=resolved, resolved_at=now, create event.
  */
 export async function resolveConversation(
-  db: DbClient,
+  db: Db,
   id: string,
   actorId: string,
 ): Promise<TransitionResult> {
@@ -459,7 +159,7 @@ export async function resolveConversation(
  * Reopen a conversation: set status=open, clear resolved_at, create event.
  */
 export async function reopenConversation(
-  db: DbClient,
+  db: Db,
   id: string,
   actorId: string,
 ): Promise<TransitionResult> {
@@ -470,7 +170,7 @@ export async function reopenConversation(
  * Move a conversation to pending: awaiting customer or internal follow-up.
  */
 export async function pendConversation(
-  db: DbClient,
+  db: Db,
   id: string,
   actorId: string,
 ): Promise<TransitionResult> {
@@ -481,7 +181,7 @@ export async function pendConversation(
  * Snooze a conversation: set status=snoozed, snoozed_until, create event.
  */
 export async function snoozeConversation(
-  db: DbClient,
+  db: Db,
   id: string,
   actorId: string,
   until: Date,
@@ -494,19 +194,11 @@ export async function snoozeConversation(
  * Intended to be called by the BullMQ scheduled job when snoozed_until passes.
  */
 export async function unsnoozeConversation(
-  db: DbClient,
+  db: Db,
   id: string,
   actorId: string,
 ): Promise<TransitionResult> {
-  if (isDrizzleDb(db)) {
-    const conv = await getConversationById(db, id);
-    if (conv && conv.status !== 'snoozed') {
-      return { ok: false, error: 'Conversation is not snoozed' };
-    }
-    return applyTransition(db, id, actorId, 'open');
-  }
-
-  const conv = store.conversations.get(id);
+  const conv = await db.conversationCrud.getById(id);
   if (conv && conv.status !== 'snoozed') {
     return { ok: false, error: 'Conversation is not snoozed' };
   }
@@ -517,17 +209,8 @@ export async function unsnoozeConversation(
  * Get all events for a conversation (audit log).
  */
 export async function getConversationEvents(
-  db: DbClient,
+  db: Db,
   conversationId: string,
 ): Promise<ConversationEvent[]> {
-  if (isDrizzleDb(db)) {
-    const rows = (await db
-      .select()
-      .from(conversationEvents)
-      .where(eq(conversationEvents.conversationId, conversationId))
-      .orderBy(desc(conversationEvents.createdAt))) as Array<typeof conversationEvents.$inferSelect>;
-    return rows.map(toConversationEvent);
-  }
-
-  return store.events.get(conversationId) ?? [];
+  return db.events.list(conversationId);
 }

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
 import { createMessage, getMessageById, listMessages, searchMessages } from '../data/messages.js';
+import { getConversationById } from '../data/conversations.js';
 import type { Db } from '../data/db.js';
 
 type MessageRouteEnv = { Variables: { db: Db; actorId: string } };
@@ -44,6 +45,12 @@ messageRoutes.post('/conversations/:id/messages', async (c) => {
 
   if (!parsed.success) {
     return c.json({ error: 'Invalid request', details: parsed.error.flatten() }, 400);
+  }
+
+  // Verify conversation exists before creating a message
+  const conversation = await getConversationById(db, parsed.data.conversationId);
+  if (!conversation) {
+    return c.json({ error: 'Conversation not found' }, 404);
   }
 
   try {

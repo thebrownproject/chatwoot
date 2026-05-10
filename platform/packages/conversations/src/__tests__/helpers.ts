@@ -5,6 +5,7 @@ import type { AssignedConversation, AssignedConversationsFilter, ConversationAss
 import type { Message, CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
 import type { Label, ConversationLabel } from '../types/labels.js';
 import type { CannedResponse } from '../types/canned-responses.js';
+import type { Conversation, ConversationCreate, ConversationUpdate, ConversationFilters } from '../types.js';
 
 /** Simple in-memory DB for unit tests. */
 export function createTestDb(): Db {
@@ -14,6 +15,10 @@ export function createTestDb(): Db {
   const conversationAssignees: Map<string, string | null> = new Map();
 
   const conversationStore: AssignedConversation[] = [];
+
+  // Conversation CRUD store
+  const conversationCrudStore = new Map<string, Conversation>();
+  let displayIdCounter = 0;
 
   // Labels
   const labelStore: Label[] = [];
@@ -44,11 +49,75 @@ export function createTestDb(): Db {
     seedConversation: typeof seedConversation;
     getEvents: () => ConversationEvent[];
     getMessages: () => Message[];
+    getConversations: () => Conversation[];
   } = {
     seedUser,
     seedConversation,
     getEvents: () => [...eventStore],
     getMessages: () => [...messageStore],
+    getConversations: () => [...conversationCrudStore.values()],
+    conversationCrud: {
+      async create(data: ConversationCreate): Promise<Conversation> {
+        const id = crypto.randomUUID();
+        const timestamp = new Date();
+        displayIdCounter += 1;
+        const conversation: Conversation = {
+          id,
+          displayId: displayIdCounter,
+          status: 'open',
+          channelOrigin: data.channelOrigin,
+          assigneeId: data.assigneeId ?? null,
+          subject: data.subject ?? null,
+          priority: data.priority ?? 'medium',
+          snoozedUntil: null,
+          firstReplyAt: null,
+          resolvedAt: null,
+          metadata: data.metadata ?? {},
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        conversationCrudStore.set(id, conversation);
+        return conversation;
+      },
+      async getById(id: string): Promise<Conversation | undefined> {
+        return conversationCrudStore.get(id);
+      },
+      async getByDisplayId(displayId: number): Promise<Conversation | undefined> {
+        for (const conv of conversationCrudStore.values()) {
+          if (conv.displayId === displayId) return conv;
+        }
+        return undefined;
+      },
+      async list(filters: ConversationFilters = {}): Promise<{ data: Conversation[]; total: number }> {
+        const results = [...conversationCrudStore.values()].filter((c) => {
+          if (filters.status !== undefined && c.status !== filters.status) return false;
+          if (filters.assigneeId !== undefined && c.assigneeId !== filters.assigneeId) return false;
+          if (filters.channelOrigin !== undefined && c.channelOrigin !== filters.channelOrigin) return false;
+          if (filters.priority !== undefined && c.priority !== filters.priority) return false;
+          return true;
+        });
+        results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const total = results.length;
+        const offset = filters.offset ?? 0;
+        const limit = filters.limit ?? 25;
+        const data = results.slice(offset, offset + limit);
+        return { data, total };
+      },
+      async update(id: string, data: ConversationUpdate): Promise<Conversation | undefined> {
+        const conv = conversationCrudStore.get(id);
+        if (!conv) return undefined;
+        if (data.subject !== undefined) conv.subject = data.subject;
+        if (data.priority !== undefined) conv.priority = data.priority;
+        if (data.metadata !== undefined) conv.metadata = { ...conv.metadata, ...data.metadata };
+        // Support status/resolvedAt/snoozedUntil updates from the transition helper
+        const anyData = data as Record<string, unknown>;
+        if ('status' in anyData) conv.status = anyData.status as Conversation['status'];
+        if ('resolvedAt' in anyData) conv.resolvedAt = anyData.resolvedAt as Date | null;
+        if ('snoozedUntil' in anyData) conv.snoozedUntil = anyData.snoozedUntil as Date | null;
+        conv.updatedAt = new Date();
+        return conv;
+      },
+    },
     participants: {
       async add(conversationId, userId, role): Promise<ConversationParticipant> {
         const p: ConversationParticipant = {

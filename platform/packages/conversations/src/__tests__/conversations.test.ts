@@ -11,15 +11,13 @@ import {
   snoozeConversation,
   unsnoozeConversation,
   getConversationEvents,
-  _resetStore,
 } from '../data/conversations.js';
-import type { DbClient } from '../types.js';
+import { createTestDb, type TestDb } from './helpers.js';
 
-// Minimal mock db — data functions use an in-memory store, not the db client
-const db = {} as DbClient;
+let db: TestDb;
 
 beforeEach(() => {
-  _resetStore();
+  db = createTestDb();
 });
 
 describe('createConversation', () => {

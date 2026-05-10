@@ -16,7 +16,6 @@ import {
   snoozeConversation,
   unsnoozeConversation,
   getConversationEvents,
-  _resetStore as resetConversationStore,
 } from '../../packages/conversations/src/data/conversations.js';
 import {
   assignConversation,
@@ -94,30 +93,93 @@ import { EventBus } from '../../packages/core/src/event-bus.js';
 import { onConversationEvent } from '../../packages/core/src/hooks/conversation-hooks.js';
 import { onMessageCreated } from '../../packages/core/src/hooks/message-hooks.js';
 import type { HookDb, HookMessage, HookConversation, HookConversationEvent, EventMap } from '../../packages/core/src/types.js';
-import type { Conversation, ConversationCreate, DbClient } from '../../packages/conversations/src/types.js';
+import type { Conversation, ConversationCreate } from '../../packages/conversations/src/types.js';
 import type { Db as ConversationDb } from '../../packages/conversations/src/data/db.js';
 import type { ConversationEvent, ConversationEventCreate, EventType } from '../../packages/conversations/src/types/events.js';
 import type { ConversationParticipant, ParticipantRole, ParticipantWithUser } from '../../packages/conversations/src/types/participants.js';
 import type { AgentConfig, AgentConfigCreate, CopilotSuggestion, HandoffRequest } from '../../packages/agents/src/types.js';
 import type { RoutableConversation, RoutingRule, RoutingDb } from '../../packages/routing/src/types.js';
 import type { PortalRecord, CategoryRecord, ArticleRecord } from '../../packages/knowledge-base/src/types.js';
+import type { ConversationFilters, ConversationUpdate } from '../../packages/conversations/src/types.js';
 
 // ---------------------------------------------------------------------------
-// Stub DbClient for modules that need one
+// In-memory conversation DB for e2e tests
 // ---------------------------------------------------------------------------
 
-export function createStubDb(): DbClient {
-  return {
-    query: null,
-    execute: async () => ({}),
-  };
-}
-
-function createConversationAssignmentDb(db: DbClient): ConversationDb {
+function createE2eConversationDb(): ConversationDb {
+  const conversationCrudStore = new Map<string, Conversation>();
   const participants: ConversationParticipant[] = [];
   const events: ConversationEvent[] = [];
+  let displayIdCounter = 0;
+  let idCounter = 0;
+
+  const nextId = () => {
+    idCounter++;
+    return `00000000-0000-0000-0000-${String(idCounter).padStart(12, '0')}`;
+  };
 
   return {
+    conversationCrud: {
+      async create(data: ConversationCreate): Promise<Conversation> {
+        const id = crypto.randomUUID();
+        const timestamp = new Date();
+        displayIdCounter += 1;
+        const conversation: Conversation = {
+          id,
+          displayId: displayIdCounter,
+          status: 'open',
+          channelOrigin: data.channelOrigin,
+          assigneeId: data.assigneeId ?? null,
+          subject: data.subject ?? null,
+          priority: data.priority ?? 'medium',
+          snoozedUntil: null,
+          firstReplyAt: null,
+          resolvedAt: null,
+          metadata: data.metadata ?? {},
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        conversationCrudStore.set(id, conversation);
+        return conversation;
+      },
+      async getById(id: string): Promise<Conversation | undefined> {
+        return conversationCrudStore.get(id);
+      },
+      async getByDisplayId(displayId: number): Promise<Conversation | undefined> {
+        for (const conv of conversationCrudStore.values()) {
+          if (conv.displayId === displayId) return conv;
+        }
+        return undefined;
+      },
+      async list(filters: ConversationFilters = {}): Promise<{ data: Conversation[]; total: number }> {
+        const results = [...conversationCrudStore.values()].filter((c) => {
+          if (filters.status !== undefined && c.status !== filters.status) return false;
+          if (filters.assigneeId !== undefined && c.assigneeId !== filters.assigneeId) return false;
+          if (filters.channelOrigin !== undefined && c.channelOrigin !== filters.channelOrigin) return false;
+          if (filters.priority !== undefined && c.priority !== filters.priority) return false;
+          return true;
+        });
+        results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const total = results.length;
+        const offset = filters.offset ?? 0;
+        const limit = filters.limit ?? 25;
+        const data = results.slice(offset, offset + limit);
+        return { data, total };
+      },
+      async update(id: string, data: ConversationUpdate): Promise<Conversation | undefined> {
+        const conv = conversationCrudStore.get(id);
+        if (!conv) return undefined;
+        if (data.subject !== undefined) conv.subject = data.subject;
+        if (data.priority !== undefined) conv.priority = data.priority;
+        if (data.metadata !== undefined) conv.metadata = { ...conv.metadata, ...data.metadata };
+        const anyData = data as Record<string, unknown>;
+        if ('status' in anyData) conv.status = anyData.status as Conversation['status'];
+        if ('resolvedAt' in anyData) conv.resolvedAt = anyData.resolvedAt as Date | null;
+        if ('snoozedUntil' in anyData) conv.snoozedUntil = anyData.snoozedUntil as Date | null;
+        conv.updatedAt = new Date();
+        return conv;
+      },
+    },
     participants: {
       async add(conversationId, userId, role) {
         const participant: ConversationParticipant = {
@@ -169,14 +231,14 @@ function createConversationAssignmentDb(db: DbClient): ConversationDb {
     },
     conversations: {
       async setAssignee(conversationId, assigneeId) {
-        const conversation = await getConversationById(db, conversationId);
+        const conversation = conversationCrudStore.get(conversationId);
         if (!conversation) throw new Error(`Conversation ${conversationId} not found`);
 
         conversation.assigneeId = assigneeId;
         conversation.updatedAt = new Date();
       },
       async getAssignee(conversationId) {
-        const conversation = await getConversationById(db, conversationId);
+        const conversation = conversationCrudStore.get(conversationId);
         if (!conversation?.assigneeId) return null;
 
         const user = getTestUser(conversation.assigneeId);
@@ -185,23 +247,29 @@ function createConversationAssignmentDb(db: DbClient): ConversationDb {
           : null;
       },
       async listAssigned(userId, filters) {
-        const result = await listConversations(db, {
+        const conditions: ConversationFilters = {
+          assigneeId: userId,
           status: filters?.status,
           priority: filters?.priority,
-          assigneeId: userId,
           limit: filters?.limit,
           offset: filters?.offset,
+        };
+        const result = [...conversationCrudStore.values()].filter((c) => {
+          if (c.assigneeId !== userId) return false;
+          if (conditions.status && c.status !== conditions.status) return false;
+          if (conditions.priority && c.priority !== conditions.priority) return false;
+          return true;
         });
-        return result.data;
+        return result;
       },
       async listUnassigned(filters) {
-        const result = await listConversations(db, {
-          status: filters?.status,
-          priority: filters?.priority,
-          limit: filters?.limit,
-          offset: filters?.offset,
+        const result = [...conversationCrudStore.values()].filter((c) => {
+          if (c.assigneeId !== null) return false;
+          if (filters?.status && c.status !== filters.status) return false;
+          if (filters?.priority && c.priority !== filters.priority) return false;
+          return true;
         });
-        return result.data.filter((conversation) => conversation.assigneeId === null);
+        return result;
       },
     },
     events: {
@@ -225,6 +293,30 @@ function createConversationAssignmentDb(db: DbClient): ConversationDb {
           (event) => event.conversationId === conversationId && event.eventType === eventType,
         );
       },
+    },
+    // Stubs for messages/labels/cannedResponses - not used in e2e but required by Db type
+    messages: {
+      async create() { throw new Error('Not implemented in e2e'); },
+      async getById() { return undefined; },
+      async list() { return []; },
+      async search() { return []; },
+    },
+    labels: {
+      async create() { throw new Error('Not implemented in e2e'); },
+      async list() { return []; },
+      async findByName() { return undefined; },
+      async addToConversation() { throw new Error('Not implemented in e2e'); },
+      async removeFromConversation() {},
+      async getConversationLabels() { return []; },
+      async getConversationsByLabel() { return []; },
+    },
+    cannedResponses: {
+      async create() { throw new Error('Not implemented in e2e'); },
+      async getById() { return undefined; },
+      async list() { return []; },
+      async update() { return undefined; },
+      async delete() { return false; },
+      async search() { return []; },
     },
   };
 }
@@ -471,7 +563,7 @@ export function getRoutingAssignment(conversationId: string): string | undefined
 // ---------------------------------------------------------------------------
 
 export interface Platform {
-  db: DbClient;
+  db: ConversationDb;
   routingDb: RoutingDb;
 
   // Conversations
@@ -481,13 +573,13 @@ export interface Platform {
     list: typeof listConversations;
     update: typeof updateConversation;
     assign: (
-      db: DbClient,
+      db: ConversationDb,
       conversationId: string,
       assigneeId: string,
       actorId: string,
     ) => Promise<Conversation | undefined>;
     unassign: (
-      db: DbClient,
+      db: ConversationDb,
       conversationId: string,
       actorId: string,
     ) => Promise<Conversation | undefined>;
@@ -594,7 +686,6 @@ export interface Platform {
  */
 export function createPlatform(): Platform {
   // Reset all in-memory stores
-  resetConversationStore();
   resetAgentStore();
   _resetCopilotStore();
   _resetHandoffStore();
@@ -608,8 +699,7 @@ export function createPlatform(): Platform {
   notificationStore.length = 0;
   settingsStore.clear();
 
-  const db = createStubDb();
-  const conversationAssignmentDb = createConversationAssignmentDb(db);
+  const db = createE2eConversationDb();
   const routingDb = createRoutingDb();
 
   return {
@@ -622,11 +712,11 @@ export function createPlatform(): Platform {
       list: listConversations,
       update: updateConversation,
       assign: async (db, conversationId, assigneeId, actorId) => {
-        await assignConversation(conversationAssignmentDb, conversationId, assigneeId, actorId);
+        await assignConversation(db, conversationId, assigneeId, actorId);
         return getConversationById(db, conversationId);
       },
       unassign: async (db, conversationId, actorId) => {
-        await unassignConversation(conversationAssignmentDb, conversationId, actorId);
+        await unassignConversation(db, conversationId, actorId);
         return getConversationById(db, conversationId);
       },
       resolve: resolveConversation,
@@ -707,19 +797,19 @@ export function createPlatform(): Platform {
       const hookNotifications: TestNotification[] = [];
       return {
         async updateConversationStatus(conversationId, status) {
-          const conv = await getConversationById(db, conversationId);
+          const conv = await db.conversationCrud.getById(conversationId);
           if (conv) {
             (conv as { status: string }).status = status;
           }
         },
         async setFirstReplyAt(conversationId, timestamp) {
-          const conv = await getConversationById(db, conversationId);
+          const conv = await db.conversationCrud.getById(conversationId);
           if (conv) {
             conv.firstReplyAt = timestamp;
           }
         },
         async getParticipantIds(conversationId) {
-          return (await conversationAssignmentDb.participants.list(conversationId)).map(p => p.userId);
+          return (await db.participants.list(conversationId)).map(p => p.userId);
         },
         async getUser(userId) {
           const user = getTestUser(userId);
@@ -774,7 +864,6 @@ export function createPlatform(): Platform {
 export type {
   Conversation,
   ConversationCreate,
-  DbClient,
   AgentConfig,
   AgentConfigCreate,
   CopilotSuggestion,

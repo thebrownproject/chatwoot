@@ -323,9 +323,130 @@ function assignedConversationConditions(
   return and(...conditions);
 }
 
+type ConversationCreate = {
+  channelOrigin: string;
+  subject?: string | null;
+  priority?: string;
+  assigneeId?: string | null;
+  actorId?: string;
+  metadata?: Record<string, unknown>;
+};
+
+type ConversationUpdate = {
+  subject?: string;
+  priority?: string;
+  metadata?: Record<string, unknown>;
+  status?: string;
+  resolvedAt?: Date | null;
+  snoozedUntil?: Date | null;
+};
+
+type ConversationFilters = {
+  status?: string;
+  assigneeId?: string;
+  channelOrigin?: string;
+  priority?: string;
+  limit?: number;
+  offset?: number;
+};
+
 function createConversationAdapters(db: Db) {
   return {
     db,
+    conversationCrud: {
+      async create(data: ConversationCreate): Promise<Conversation> {
+        const [row] = await db
+          .insert(conversations)
+          .values({
+            channelOrigin: data.channelOrigin,
+            assigneeId: data.assigneeId ?? null,
+            subject: data.subject ?? null,
+            priority: (data.priority as Conversation['priority']) ?? 'medium',
+            metadata: data.metadata ?? {},
+          })
+          .returning();
+        if (!row) throw new Error('Failed to create conversation');
+        return {
+          ...row,
+          metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        };
+      },
+      async getById(id: string): Promise<Conversation | undefined> {
+        const [row] = await db
+          .select()
+          .from(conversations)
+          .where(eq(conversations.id, id))
+          .limit(1);
+        if (!row) return undefined;
+        return {
+          ...row,
+          metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        };
+      },
+      async getByDisplayId(displayId: number): Promise<Conversation | undefined> {
+        const [row] = await db
+          .select()
+          .from(conversations)
+          .where(eq(conversations.displayId, displayId))
+          .limit(1);
+        if (!row) return undefined;
+        return {
+          ...row,
+          metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        };
+      },
+      async list(filters: ConversationFilters = {}): Promise<{ data: Conversation[]; total: number }> {
+        const conditions = [];
+        if (filters.status !== undefined) conditions.push(eq(conversations.status, filters.status as Conversation['status']));
+        if (filters.assigneeId !== undefined) conditions.push(eq(conversations.assigneeId, filters.assigneeId));
+        if (filters.channelOrigin !== undefined) conditions.push(eq(conversations.channelOrigin, filters.channelOrigin as Conversation['channelOrigin']));
+        if (filters.priority !== undefined) conditions.push(eq(conversations.priority, filters.priority as Conversation['priority']));
+
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+        const baseQuery = db.select().from(conversations);
+        const rows = await (where ? baseQuery.where(where) : baseQuery)
+          .orderBy(desc(conversations.createdAt))
+          .limit(filters.limit ?? 25)
+          .offset(filters.offset ?? 0);
+
+        const totalRows = await (where
+          ? db.select({ id: conversations.id }).from(conversations).where(where)
+          : db.select({ id: conversations.id }).from(conversations));
+
+        return {
+          data: rows.map((row) => ({
+            ...row,
+            metadata: (row.metadata ?? {}) as Record<string, unknown>,
+          })),
+          total: totalRows.length,
+        };
+      },
+      async update(id: string, data: ConversationUpdate): Promise<Conversation | undefined> {
+        const dbChanges: Record<string, unknown> = {};
+        if (data.subject !== undefined) dbChanges.subject = data.subject;
+        if (data.priority !== undefined) dbChanges.priority = data.priority;
+        if (data.status !== undefined) dbChanges.status = data.status;
+        if ('resolvedAt' in data) dbChanges.resolvedAt = data.resolvedAt;
+        if ('snoozedUntil' in data) dbChanges.snoozedUntil = data.snoozedUntil;
+        if (data.metadata !== undefined) {
+          const existing = await this.getById(id);
+          if (!existing) return undefined;
+          dbChanges.metadata = { ...existing.metadata, ...data.metadata };
+        }
+
+        const [row] = await db
+          .update(conversations)
+          .set(dbChanges)
+          .where(eq(conversations.id, id))
+          .returning();
+
+        if (!row) return undefined;
+        return {
+          ...row,
+          metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        };
+      },
+    },
     participants: {
       async add(
         conversationId: string,

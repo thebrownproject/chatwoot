@@ -4,6 +4,7 @@ import type { AssignedConversation, AssignedConversationsFilter, ConversationAss
 import type { Message, CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
 import type { Label, ConversationLabel } from '../types/labels.js';
 import type { CannedResponse } from '../types/canned-responses.js';
+import type { Conversation, ConversationCreate, ConversationUpdate, ConversationFilters } from '../types.js';
 
 /**
  * Database adapter interface for the conversations module.
@@ -18,6 +19,13 @@ export type Db = {
     getRole(conversationId: string, userId: string): Promise<ParticipantRole | null>;
     updateRole(conversationId: string, userId: string, role: ParticipantRole): Promise<void>;
     exists(conversationId: string, userId: string): Promise<boolean>;
+  };
+  conversationCrud: {
+    create(data: ConversationCreate): Promise<Conversation>;
+    getById(id: string): Promise<Conversation | undefined>;
+    getByDisplayId(displayId: number): Promise<Conversation | undefined>;
+    list(filters?: ConversationFilters): Promise<{ data: Conversation[]; total: number }>;
+    update(id: string, data: ConversationUpdate): Promise<Conversation | undefined>;
   };
   conversations: {
     setAssignee(conversationId: string, assigneeId: string | null): Promise<void>;

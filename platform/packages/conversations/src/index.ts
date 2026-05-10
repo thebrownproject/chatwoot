@@ -15,6 +15,9 @@ export {
   getConversationEvents,
 } from './data/conversations.js';
 
+// Test utilities
+export { createTestDb } from './__tests__/helpers.js';
+
 // Status machine
 export {
   validateTransition,

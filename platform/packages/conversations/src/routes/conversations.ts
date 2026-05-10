@@ -11,7 +11,7 @@ import {
   pendConversation,
   snoozeConversation,
 } from '../data/conversations.js';
-import type { DbClient } from '../types.js';
+import type { Db } from '../data/db.js';
 
 // ---------------------------------------------------------------------------
 // Zod schemas for request validation
@@ -67,7 +67,7 @@ function isForeignKeyViolation(err: unknown): boolean {
 // Route type — expects `db` in Hono env variables
 // ---------------------------------------------------------------------------
 
-type Env = { Variables: { db: DbClient; actorId: string } };
+type Env = { Variables: { db: Db; actorId: string } };
 
 /**
  * Conversation routes as a Hono app.
@@ -90,7 +90,7 @@ conversationRoutes.get('/', async (c) => {
   }
 
   const result = await listConversations(db, parsed.data);
-  return c.json(result);
+  return c.json({ data: result });
 });
 
 // ---------------------------------------------------------------------------

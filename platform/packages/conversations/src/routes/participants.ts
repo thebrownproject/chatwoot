@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { addParticipantSchema, updateParticipantRoleSchema } from '../types/participants.js';
 import * as participants from '../data/participants.js';
+import { getConversationById } from '../data/conversations.js';
 import type { Db } from '../data/db.js';
 
 export type ParticipantsEnv = { Variables: { db: Db } };
@@ -35,6 +36,12 @@ participantsRoutes.post('/conversations/:id/participants', async (c) => {
     return c.json({ error: parsed.error.flatten() }, 400);
   }
 
+  // Verify conversation exists before adding a participant
+  const conversation = await getConversationById(db, conversationId);
+  if (!conversation) {
+    return c.json({ error: 'Conversation or user not found' }, 404);
+  }
+
   try {
     const participant = await participants.addParticipant(
       db,
@@ -42,7 +49,7 @@ participantsRoutes.post('/conversations/:id/participants', async (c) => {
       parsed.data.userId,
       parsed.data.role,
     );
-    return c.json(participant, 201);
+    return c.json({ data: participant }, 201);
   } catch (err) {
     if (isForeignKeyViolation(err)) {
       return c.json({ error: 'Conversation or user not found' }, 404);
