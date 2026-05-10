@@ -5,7 +5,6 @@ type Handler<T> = (data: T) => Promise<void>;
 export class EventBus {
   private handlers = new Map<string, Handler<unknown>[]>();
 
-  /** Register a handler for an event type. */
   on<K extends keyof EventMap>(
     event: K,
     handler: Handler<EventMap[K]>,
@@ -15,7 +14,6 @@ export class EventBus {
     this.handlers.set(event, list);
   }
 
-  /** Remove a specific handler for an event type. */
   off<K extends keyof EventMap>(
     event: K,
     handler: Handler<EventMap[K]>,
@@ -26,14 +24,14 @@ export class EventBus {
     if (idx !== -1) list.splice(idx, 1);
   }
 
-  /** Emit an event, running all handlers sequentially. One failing handler does not stop others. */
   async emit<K extends keyof EventMap>(
     event: K,
     data: EventMap[K],
   ): Promise<void> {
     const list = this.handlers.get(event);
     if (!list) return;
-    for (const handler of list) {
+    const snapshot = [...list];
+    for (const handler of snapshot) {
       try {
         await handler(data);
       } catch (err) {
@@ -42,7 +40,10 @@ export class EventBus {
     }
   }
 
-  /** Remove all handlers (useful for testing). */
+  listenerCount<K extends keyof EventMap>(event: K): number {
+    return this.handlers.get(event)?.length ?? 0;
+  }
+
   clear(): void {
     this.handlers.clear();
   }

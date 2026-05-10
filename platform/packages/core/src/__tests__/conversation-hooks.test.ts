@@ -137,6 +137,92 @@ describe('onConversationEvent', () => {
 
     expect(db.notifications).toHaveLength(0);
   });
+
+  it('continues notifying other leads when one notification fails', async () => {
+    const notifications: Notification[] = [];
+    let callCount = 0;
+    const db: HookDb & { notifications: Notification[] } = {
+      notifications,
+      async updateConversationStatus() {},
+      async setFirstReplyAt() {},
+      async getParticipantIds() { return []; },
+      async getUser(id) { return users.get(id); },
+      async createNotification(n) {
+        callCount++;
+        if (callCount === 1) throw new Error('first lead fails');
+        notifications.push(n);
+      },
+      async getTeamLeadIds() { return ['lead-1', 'agent-2']; },
+    };
+
+    const event: HookConversationEvent = {
+      id: 'evt-1',
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+      eventType: 'escalated',
+      payload: {},
+    };
+
+    await onConversationEvent(db, event);
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]!.userId).toBe('agent-2');
+  });
+
+  it('uses "unknown" when status_changed payload has no "to" field', async () => {
+    const db = createMockDb(users, participants);
+
+    const event: HookConversationEvent = {
+      id: 'evt-1',
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+      eventType: 'status_changed',
+      payload: {},
+    };
+
+    await onConversationEvent(db, event);
+
+    expect(db.notifications).toHaveLength(1);
+    expect(db.notifications[0]!.message).toContain('unknown');
+  });
+
+  it('does not throw when db.getTeamLeadIds fails', async () => {
+    const db: HookDb & { notifications: Notification[] } = {
+      notifications: [],
+      async updateConversationStatus() {},
+      async setFirstReplyAt() {},
+      async getParticipantIds() { return []; },
+      async getUser(id) { return users.get(id); },
+      async createNotification() {},
+      async getTeamLeadIds() { throw new Error('db error'); },
+    };
+
+    const event: HookConversationEvent = {
+      id: 'evt-1',
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+      eventType: 'escalated',
+      payload: {},
+    };
+
+    await expect(onConversationEvent(db, event)).resolves.toBeUndefined();
+  });
+
+  it('does not notify when assigned payload has non-string assigneeId', async () => {
+    const db = createMockDb(users, participants);
+
+    const event: HookConversationEvent = {
+      id: 'evt-1',
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+      eventType: 'assigned',
+      payload: { assigneeId: 123 },
+    };
+
+    await onConversationEvent(db, event);
+
+    expect(db.notifications).toHaveLength(0);
+  });
 });
 
 describe('onConversationAssigned', () => {
