@@ -48,6 +48,12 @@ const listFiltersSchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return uuidRegex.test(value);
+}
+
 function isForeignKeyViolation(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -84,7 +90,7 @@ conversationRoutes.get('/', async (c) => {
   }
 
   const result = await listConversations(db, parsed.data);
-  return c.json({ data: result });
+  return c.json(result);
 });
 
 // ---------------------------------------------------------------------------
@@ -115,6 +121,10 @@ conversationRoutes.get('/:id', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
 
+  if (!isValidUuid(id)) {
+    return c.json({ error: 'Invalid conversation ID' }, 400);
+  }
+
   const conversation = await getConversationById(db, id);
   if (!conversation) {
     return c.json({ error: 'Conversation not found' }, 404);
@@ -139,7 +149,7 @@ conversationRoutes.post('/', async (c) => {
   const actorId = c.get('actorId') ?? 'system';
   try {
     const conversation = await createConversation(db, { ...parsed.data, actorId });
-    return c.json(conversation, 201);
+    return c.json({ data: conversation }, 201);
   } catch (err) {
     if (parsed.data.assigneeId && isForeignKeyViolation(err)) {
       return c.json({ error: 'Assignee not found' }, 404);
@@ -156,6 +166,11 @@ conversationRoutes.post('/', async (c) => {
 conversationRoutes.patch('/:id', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
+
+  if (!isValidUuid(id)) {
+    return c.json({ error: 'Invalid conversation ID' }, 400);
+  }
+
   const body = await c.req.json();
   const parsed = updateConversationSchema.safeParse(body);
 
@@ -163,7 +178,8 @@ conversationRoutes.patch('/:id', async (c) => {
     return c.json({ error: 'Invalid request body', details: parsed.error.flatten() }, 400);
   }
 
-  const conversation = await updateConversation(db, id, parsed.data);
+  const actorId = c.get('actorId') ?? 'system';
+  const conversation = await updateConversation(db, id, parsed.data, actorId);
   if (!conversation) {
     return c.json({ error: 'Conversation not found' }, 404);
   }
@@ -178,7 +194,7 @@ conversationRoutes.patch('/:id', async (c) => {
 conversationRoutes.post('/:id/resolve', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
-  // actorId would normally come from auth middleware
+  if (!isValidUuid(id)) return c.json({ error: 'Invalid conversation ID' }, 400);
   const actorId = c.get('actorId') ?? 'system';
 
   const result = await resolveConversation(db, id, actorId);
@@ -197,6 +213,7 @@ conversationRoutes.post('/:id/resolve', async (c) => {
 conversationRoutes.post('/:id/reopen', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
+  if (!isValidUuid(id)) return c.json({ error: 'Invalid conversation ID' }, 400);
   const actorId = c.get('actorId') ?? 'system';
 
   const result = await reopenConversation(db, id, actorId);
@@ -215,6 +232,7 @@ conversationRoutes.post('/:id/reopen', async (c) => {
 conversationRoutes.post('/:id/pending', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
+  if (!isValidUuid(id)) return c.json({ error: 'Invalid conversation ID' }, 400);
   const actorId = c.get('actorId') ?? 'system';
 
   const result = await pendConversation(db, id, actorId);
@@ -233,6 +251,7 @@ conversationRoutes.post('/:id/pending', async (c) => {
 conversationRoutes.post('/:id/snooze', async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
+  if (!isValidUuid(id)) return c.json({ error: 'Invalid conversation ID' }, 400);
   const actorId = c.get('actorId') ?? 'system';
 
   const body = await c.req.json();
