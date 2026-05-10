@@ -80,7 +80,7 @@ export function widgetRoutes(store: WidgetStore): Hono {
       if (messages) messages.push(msg);
     }
 
-    return c.json(conversation, 201);
+    return c.json({ data: conversation }, 201);
   });
 
   app.get('/conversations/:id/messages', (c) => {
@@ -91,7 +91,7 @@ export function widgetRoutes(store: WidgetStore): Hono {
     }
 
     const messages = store.messages.get(conversationId) ?? [];
-    return c.json(messages);
+    return c.json({ data: messages });
   });
 
   app.post('/conversations/:id/messages', async (c) => {
@@ -123,7 +123,7 @@ export function widgetRoutes(store: WidgetStore): Hono {
       store.messages.set(conversationId, [msg]);
     }
 
-    return c.json(msg, 201);
+    return c.json({ data: msg }, 201);
   });
 
   return app;

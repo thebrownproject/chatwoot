@@ -35,7 +35,7 @@ export function channelRoutes(db: ChannelDb): Hono {
       active: active !== undefined ? active === 'true' : undefined,
     });
 
-    return c.json(channels);
+    return c.json({ data: channels });
   });
 
   app.post('/', async (c) => {
@@ -50,7 +50,7 @@ export function channelRoutes(db: ChannelDb): Hono {
       ...parsed.data,
     });
 
-    return c.json(channel, 201);
+    return c.json({ data: channel }, 201);
   });
 
   app.get('/:id', (c) => {
@@ -58,7 +58,7 @@ export function channelRoutes(db: ChannelDb): Hono {
     if (!channel) {
       return c.json({ error: 'Channel not found' }, 404);
     }
-    return c.json(channel);
+    return c.json({ data: channel });
   });
 
   app.patch('/:id', async (c) => {
@@ -72,7 +72,7 @@ export function channelRoutes(db: ChannelDb): Hono {
     if (!channel) {
       return c.json({ error: 'Channel not found' }, 404);
     }
-    return c.json(channel);
+    return c.json({ data: channel });
   });
 
   app.delete('/:id', (c) => {
@@ -80,7 +80,7 @@ export function channelRoutes(db: ChannelDb): Hono {
     if (!channel) {
       return c.json({ error: 'Channel not found' }, 404);
     }
-    return c.json(channel);
+    return c.json({ data: channel });
   });
 
   return app;
