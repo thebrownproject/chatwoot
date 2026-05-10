@@ -5,6 +5,7 @@ import type {
   RuleMatch,
 } from '../types.js';
 
+const MAX_CACHE_SIZE = 1000;
 const keywordRegexCache = new Map<string, RegExp>();
 
 function getKeywordRegex(keyword: string): RegExp {
@@ -13,6 +14,10 @@ function getKeywordRegex(keyword: string): RegExp {
   if (!regex) {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    if (keywordRegexCache.size >= MAX_CACHE_SIZE) {
+      const firstKey = keywordRegexCache.keys().next().value as string;
+      keywordRegexCache.delete(firstKey);
+    }
     keywordRegexCache.set(key, regex);
   }
   return regex;
@@ -56,10 +61,11 @@ export function matchConditions(
   conditions: RuleConditions,
 ): boolean {
   // If no conditions are specified, the rule matches everything
-  const hasConditions =
-    conditions.channel !== undefined ||
-    (conditions.labels !== undefined && conditions.labels.length > 0) ||
-    (conditions.keywords !== undefined && conditions.keywords.length > 0);
+  const hasLabels = conditions.labels !== undefined &&
+    conditions.labels.some((l) => l.trim().length > 0);
+  const hasKeywords = conditions.keywords !== undefined &&
+    conditions.keywords.some((kw) => kw.trim().length > 0);
+  const hasConditions = conditions.channel !== undefined || hasLabels || hasKeywords;
 
   if (!hasConditions) return true;
 
@@ -70,22 +76,28 @@ export function matchConditions(
 
   // Label match — conversation must have at least one of the rule's labels
   if (conditions.labels !== undefined && conditions.labels.length > 0) {
-    const conversationLabels = conversation.labels ?? [];
-    const hasMatchingLabel = conditions.labels.some((label) =>
-      conversationLabels.includes(label),
-    );
-    if (!hasMatchingLabel) return false;
+    const validLabels = conditions.labels.filter((l) => l.trim().length > 0);
+    if (validLabels.length > 0) {
+      const conversationLabels = conversation.labels ?? [];
+      const hasMatchingLabel = validLabels.some((label) =>
+        conversationLabels.includes(label),
+      );
+      if (!hasMatchingLabel) return false;
+    }
   }
 
   // Keyword match — at least one keyword must appear as a whole word in subject or body
   if (conditions.keywords !== undefined && conditions.keywords.length > 0) {
-    const searchText = [conversation.subject ?? '', conversation.body ?? '']
-      .join(' ')
-      .toLowerCase();
-    const hasMatchingKeyword = conditions.keywords.some((kw) =>
-      getKeywordRegex(kw).test(searchText),
-    );
-    if (!hasMatchingKeyword) return false;
+    const validKeywords = conditions.keywords.filter((kw) => kw.trim().length > 0);
+    if (validKeywords.length > 0) {
+      const searchText = [conversation.subject ?? '', conversation.body ?? '']
+        .join(' ')
+        .toLowerCase();
+      const hasMatchingKeyword = validKeywords.some((kw) =>
+        getKeywordRegex(kw).test(searchText),
+      );
+      if (!hasMatchingKeyword) return false;
+    }
   }
 
   return true;

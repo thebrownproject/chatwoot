@@ -100,12 +100,12 @@ export const ruleConditionsSchema = z.object({
   channel: z
     .enum(['email', 'web_chat', 'sms', 'slack', 'in_app'])
     .optional(),
-  labels: z.array(z.string()).optional(),
-  keywords: z.array(z.string()).optional(),
+  labels: z.array(z.string().min(1)).optional(),
+  keywords: z.array(z.string().min(1)).optional(),
 });
 
 export const routingRuleCreateSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Name cannot be whitespace only' }),
   priority: z.number().int().min(0),
   conditions: ruleConditionsSchema,
   action: z.enum(['assign_agent', 'assign_team', 'assign_bot']),
@@ -115,7 +115,7 @@ export const routingRuleCreateSchema = z.object({
 });
 
 export const routingRuleUpdateSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Name cannot be whitespace only' }).optional(),
   priority: z.number().int().min(0).optional(),
   conditions: ruleConditionsSchema.optional(),
   action: z.enum(['assign_agent', 'assign_team', 'assign_bot']).optional(),
