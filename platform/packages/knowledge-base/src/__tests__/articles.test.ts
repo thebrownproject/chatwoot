@@ -9,6 +9,8 @@ import {
   deleteArticle,
   publishArticle,
   archiveArticle,
+  unarchiveArticle,
+  transitionArticle,
   incrementViewCount,
   searchArticles,
   clearArticleStore,
@@ -81,6 +83,13 @@ describe('Article data access', () => {
     expect(getArticleBySlug(db, 'nonexistent')).toBeUndefined();
   });
 
+  it('gets article by slug scoped to portal', () => {
+    createArticle(db, { portalId: 'p1', title: 'Guide', content: 'c', authorId });
+    createArticle(db, { portalId: 'p2', title: 'Guide', content: 'c', authorId });
+    expect(getArticleBySlug(db, 'guide', 'p1')?.portalId).toBe('p1');
+    expect(getArticleBySlug(db, 'guide', 'p2')?.portalId).toBe('p2');
+  });
+
   it('lists articles by portal with filters', () => {
     const a = createArticle(db, { portalId: 'p1', title: 'A', content: 'a', authorId });
     createArticle(db, { portalId: 'p1', title: 'B', content: 'b', authorId, categoryId: 'cat1' });
@@ -100,11 +109,63 @@ describe('Article data access', () => {
     expect(updated?.content).toBe('new');
   });
 
+  it('returns unchanged article on empty update', () => {
+    const created = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    const before = created.updatedAt;
+    const updated = updateArticle(db, created.id, {});
+    expect(updated?.updatedAt).toBe(before);
+  });
+
+  it('rejects whitespace-only title on update', () => {
+    const created = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    expect(() => updateArticle(db, created.id, { title: '   ' })).toThrow('whitespace');
+  });
+
+  it('rejects whitespace-only content on update', () => {
+    const created = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    expect(() => updateArticle(db, created.id, { content: '   ' })).toThrow('whitespace');
+  });
+
+  it('rejects duplicate slug on update within same portal', () => {
+    createArticle(db, { portalId: 'p1', title: 'First', slug: 'taken-slug', content: 'c', authorId });
+    const second = createArticle(db, { portalId: 'p1', title: 'Second', content: 'c', authorId });
+    expect(() => updateArticle(db, second.id, { slug: 'taken-slug' })).toThrow('already in use');
+  });
+
+  it('allows same slug update on the same article', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', slug: 'my-slug', content: 'c', authorId });
+    const updated = updateArticle(db, article.id, { slug: 'my-slug' });
+    expect(updated?.slug).toBe('my-slug');
+  });
+
   it('deletes an article', () => {
     const created = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
     expect(deleteArticle(db, created.id)).toBe(true);
     expect(getArticleById(db, created.id)).toBeUndefined();
     expect(deleteArticle(db, 'nonexistent')).toBe(false);
+  });
+
+  it('rejects whitespace-only title on create', () => {
+    expect(() =>
+      createArticle(db, { portalId: 'p1', title: '   ', content: 'c', authorId }),
+    ).toThrow('whitespace');
+  });
+
+  it('rejects whitespace-only content on create', () => {
+    expect(() =>
+      createArticle(db, { portalId: 'p1', title: 'Test', content: '   ', authorId }),
+    ).toThrow('whitespace');
+  });
+
+  it('trims title and content on create', () => {
+    const article = createArticle(db, {
+      portalId: 'p1',
+      title: '  Getting Started  ',
+      content: '  Welcome  ',
+      authorId,
+    });
+    expect(article.title).toBe('Getting Started');
+    expect(article.content).toBe('Welcome');
   });
 });
 
@@ -128,21 +189,69 @@ describe('Article lifecycle', () => {
     expect(archived?.status).toBe('archived');
   });
 
+  it('unarchives to draft', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    publishArticle(db, article.id);
+    archiveArticle(db, article.id);
+    const unarchived = unarchiveArticle(db, article.id);
+    expect(unarchived?.status).toBe('draft');
+  });
+
   it('rejects publishing an archived article', () => {
     const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
     publishArticle(db, article.id);
     archiveArticle(db, article.id);
-    expect(() => publishArticle(db, article.id)).toThrow('archived');
+    expect(() => publishArticle(db, article.id)).toThrow();
   });
 
   it('rejects archiving a draft article', () => {
     const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
-    expect(() => archiveArticle(db, article.id)).toThrow('draft');
+    expect(() => archiveArticle(db, article.id)).toThrow();
+  });
+
+  it('rejects unarchiving a published article', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    publishArticle(db, article.id);
+    expect(() => unarchiveArticle(db, article.id)).toThrow();
+  });
+
+  it('no-ops when unarchiving a draft (already target status)', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    const result = unarchiveArticle(db, article.id);
+    expect(result?.status).toBe('draft');
+  });
+
+  it('returns same article on self-transition (published→published)', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    publishArticle(db, article.id);
+    const result = publishArticle(db, article.id);
+    expect(result?.status).toBe('published');
   });
 
   it('returns undefined for nonexistent article transitions', () => {
     expect(publishArticle(db, 'nonexistent')).toBeUndefined();
     expect(archiveArticle(db, 'nonexistent')).toBeUndefined();
+    expect(unarchiveArticle(db, 'nonexistent')).toBeUndefined();
+  });
+
+  it('full lifecycle: draft → published → archived → draft → published', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    expect(article.status).toBe('draft');
+    publishArticle(db, article.id);
+    expect(getArticleById(db, article.id)?.status).toBe('published');
+    archiveArticle(db, article.id);
+    expect(getArticleById(db, article.id)?.status).toBe('archived');
+    unarchiveArticle(db, article.id);
+    expect(getArticleById(db, article.id)?.status).toBe('draft');
+    publishArticle(db, article.id);
+    expect(getArticleById(db, article.id)?.status).toBe('published');
+  });
+
+  it('transitionArticle rejects invalid transitions with clear message', () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    expect(() => transitionArticle(db, article.id, 'archived')).toThrow(
+      'Cannot transition from "draft" to "archived"',
+    );
   });
 });
 
@@ -220,6 +329,15 @@ describe('Article routes', () => {
     expect(json.data.status).toBe('draft');
   });
 
+  it('POST rejects whitespace-only title', async () => {
+    const res = await app.request('/portals/p1/articles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '   ', content: 'Body', authorId }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('GET lists articles for a portal', async () => {
     createArticle(db, { portalId: 'p1', title: 'A', content: 'a', authorId });
     const res = await app.request('/portals/p1/articles');
@@ -246,12 +364,16 @@ describe('Article routes', () => {
     const res = await app.request(`/articles/${article.id}`);
     expect(res.status).toBe(200);
 
-    // View count incremented
     expect(getArticleById(db, article.id)?.viewCount).toBe(1);
   });
 
+  it('GET /articles/:id returns 400 for invalid UUID', async () => {
+    const res = await app.request('/articles/not-a-uuid');
+    expect(res.status).toBe(400);
+  });
+
   it('GET /articles/:id returns 404 for missing article', async () => {
-    const res = await app.request('/articles/nonexistent');
+    const res = await app.request('/articles/00000000-0000-0000-0000-000000000099');
     expect(res.status).toBe(404);
   });
 
@@ -265,6 +387,17 @@ describe('Article routes', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.data.title).toBe('New');
+  });
+
+  it('PATCH returns 409 on slug collision', async () => {
+    createArticle(db, { portalId: 'p1', title: 'First', slug: 'taken', content: 'c', authorId });
+    const second = createArticle(db, { portalId: 'p1', title: 'Second', content: 'c', authorId });
+    const res = await app.request(`/articles/${second.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: 'taken' }),
+    });
+    expect(res.status).toBe(409);
   });
 
   it('DELETE removes an article', async () => {
@@ -281,6 +414,14 @@ describe('Article routes', () => {
     expect(json.data.status).toBe('published');
   });
 
+  it('POST /articles/:id/publish returns 409 for invalid transition', async () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    publishArticle(db, article.id);
+    archiveArticle(db, article.id);
+    const res = await app.request(`/articles/${article.id}/publish`, { method: 'POST' });
+    expect(res.status).toBe(409);
+  });
+
   it('POST /articles/:id/archive archives a published article', async () => {
     const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
     publishArticle(db, article.id);
@@ -288,6 +429,22 @@ describe('Article routes', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.data.status).toBe('archived');
+  });
+
+  it('POST /articles/:id/archive returns 409 for invalid transition', async () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    const res = await app.request(`/articles/${article.id}/archive`, { method: 'POST' });
+    expect(res.status).toBe(409);
+  });
+
+  it('POST /articles/:id/unarchive unarchives an article', async () => {
+    const article = createArticle(db, { portalId: 'p1', title: 'Test', content: 'c', authorId });
+    publishArticle(db, article.id);
+    archiveArticle(db, article.id);
+    const res = await app.request(`/articles/${article.id}/unarchive`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.status).toBe('draft');
   });
 
   it('GET /articles/search searches articles', async () => {
@@ -346,7 +503,6 @@ describe('Public routes', () => {
     });
     publishArticle(db, article.id);
 
-    // Also create a draft article (should not appear)
     createArticle(db, {
       portalId: portal.id,
       categoryId: category.id,
@@ -361,6 +517,25 @@ describe('Public routes', () => {
     expect(json.data.name).toBe('Guides');
     expect(json.data.articles).toHaveLength(1);
     expect(json.data.articles[0].title).toBe('Setup');
+  });
+
+  it('public articles are sanitized (no authorId/portalId/categoryId)', async () => {
+    const portal = createPortal(db, { name: 'Help', slug: 'help' });
+    const article = createArticle(db, {
+      portalId: portal.id,
+      title: 'Getting Started',
+      content: 'Welcome',
+      authorId,
+    });
+    publishArticle(db, article.id);
+
+    const res = await app.request('/help/help/articles/getting-started');
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.title).toBe('Getting Started');
+    expect(json.data).not.toHaveProperty('authorId');
+    expect(json.data).not.toHaveProperty('portalId');
+    expect(json.data).not.toHaveProperty('categoryId');
   });
 
   it('GET /help/:portalSlug/articles/:articleSlug returns published article and increments views', async () => {
@@ -378,7 +553,6 @@ describe('Public routes', () => {
     const json = await res.json();
     expect(json.data.title).toBe('Getting Started');
 
-    // View count incremented
     expect(getArticleById(db, article.id)?.viewCount).toBe(1);
   });
 
@@ -400,7 +574,6 @@ describe('Public routes', () => {
     });
     publishArticle(db, article.id);
 
-    // Draft article should not appear in public search
     createArticle(db, { portalId: portal.id, title: 'Setup Draft', content: 'Draft setup', authorId });
 
     const res = await app.request('/help/help/search?q=setup');

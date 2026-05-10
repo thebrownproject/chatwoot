@@ -1,10 +1,3 @@
-/**
- * Article CRUD API routes.
- *
- * Admin/agent-facing routes for managing KB articles. Includes lifecycle
- * transitions (publish, archive) and full-text search.
- */
-
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -16,20 +9,19 @@ import {
   deleteArticle,
   publishArticle,
   archiveArticle,
+  unarchiveArticle,
   incrementViewCount,
   searchArticles,
 } from '../data/articles.js';
 
-// ---------------------------------------------------------------------------
-// Validation schemas
-// ---------------------------------------------------------------------------
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const articleStatusSchema = z.enum(['draft', 'published', 'archived']);
 
 const createArticleSchema = z.object({
-  title: z.string().min(1).max(500),
+  title: z.string().min(1).max(500).refine((s) => s.trim().length > 0, { message: 'Title cannot be whitespace-only' }),
   slug: z.string().min(1).max(500).regex(/^[a-z0-9-]+$/).optional(),
-  content: z.string().min(1),
+  content: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Content cannot be whitespace-only' }),
   contentHtml: z.string().nullable().optional(),
   categoryId: z.string().uuid().nullable().optional(),
   authorId: z.string().uuid(),
@@ -37,22 +29,17 @@ const createArticleSchema = z.object({
 });
 
 const updateArticleSchema = z.object({
-  title: z.string().min(1).max(500).optional(),
+  title: z.string().min(1).max(500).refine((s) => s.trim().length > 0, { message: 'Title cannot be whitespace-only' }).optional(),
   slug: z.string().min(1).max(500).regex(/^[a-z0-9-]+$/).optional(),
-  content: z.string().min(1).optional(),
+  content: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Content cannot be whitespace-only' }).optional(),
   contentHtml: z.string().nullable().optional(),
   categoryId: z.string().uuid().nullable().optional(),
   position: z.number().int().min(0).optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Route factory
-// ---------------------------------------------------------------------------
-
 export function createArticleRoutes(db: unknown): Hono {
   const app = new Hono();
 
-  // GET /portals/:portalId/articles — list articles for a portal
   app.get('/portals/:portalId/articles', (c) => {
     const portalId = c.req.param('portalId');
     const status = c.req.query('status');
@@ -70,7 +57,6 @@ export function createArticleRoutes(db: unknown): Hono {
     return c.json({ data: articles });
   });
 
-  // POST /portals/:portalId/articles — create an article
   app.post('/portals/:portalId/articles', async (c) => {
     const portalId = c.req.param('portalId');
     const body = await c.req.json();
@@ -79,11 +65,14 @@ export function createArticleRoutes(db: unknown): Hono {
       return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
     }
 
-    const article = createArticle(db, { ...parsed.data, portalId });
-    return c.json({ data: article }, 201);
+    try {
+      const article = createArticle(db, { ...parsed.data, portalId });
+      return c.json({ data: article }, 201);
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
   });
 
-  // GET /articles/search — full-text search
   app.get('/articles/search', (c) => {
     const query = c.req.query('q');
     if (!query) {
@@ -101,39 +90,48 @@ export function createArticleRoutes(db: unknown): Hono {
     return c.json({ data: articles });
   });
 
-  // GET /articles/:id — get a single article (increments view count)
   app.get('/articles/:id', (c) => {
     const id = c.req.param('id');
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid article ID' }, 400);
+    }
     const article = getArticleById(db, id);
     if (!article) {
       return c.json({ error: 'Article not found' }, 404);
     }
 
-    // Fire-and-forget view count increment
     incrementViewCount(db, id);
 
     return c.json({ data: article });
   });
 
-  // PATCH /articles/:id — update an article
   app.patch('/articles/:id', async (c) => {
     const id = c.req.param('id');
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid article ID' }, 400);
+    }
     const body = await c.req.json();
     const parsed = updateArticleSchema.safeParse(body);
     if (!parsed.success) {
       return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
     }
 
-    const article = updateArticle(db, id, parsed.data);
-    if (!article) {
-      return c.json({ error: 'Article not found' }, 404);
+    try {
+      const article = updateArticle(db, id, parsed.data);
+      if (!article) {
+        return c.json({ error: 'Article not found' }, 404);
+      }
+      return c.json({ data: article });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 409);
     }
-    return c.json({ data: article });
   });
 
-  // DELETE /articles/:id — delete an article
   app.delete('/articles/:id', (c) => {
     const id = c.req.param('id');
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid article ID' }, 400);
+    }
     const deleted = deleteArticle(db, id);
     if (!deleted) {
       return c.json({ error: 'Article not found' }, 404);
@@ -141,24 +139,52 @@ export function createArticleRoutes(db: unknown): Hono {
     return c.json({ data: { deleted: true } });
   });
 
-  // POST /articles/:id/publish — publish an article
   app.post('/articles/:id/publish', (c) => {
     const id = c.req.param('id');
-    const article = publishArticle(db, id);
-    if (!article) {
-      return c.json({ error: 'Article not found' }, 404);
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid article ID' }, 400);
     }
-    return c.json({ data: article });
+    try {
+      const article = publishArticle(db, id);
+      if (!article) {
+        return c.json({ error: 'Article not found' }, 404);
+      }
+      return c.json({ data: article });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 409);
+    }
   });
 
-  // POST /articles/:id/archive — archive an article
   app.post('/articles/:id/archive', (c) => {
     const id = c.req.param('id');
-    const article = archiveArticle(db, id);
-    if (!article) {
-      return c.json({ error: 'Article not found' }, 404);
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid article ID' }, 400);
     }
-    return c.json({ data: article });
+    try {
+      const article = archiveArticle(db, id);
+      if (!article) {
+        return c.json({ error: 'Article not found' }, 404);
+      }
+      return c.json({ data: article });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 409);
+    }
+  });
+
+  app.post('/articles/:id/unarchive', (c) => {
+    const id = c.req.param('id');
+    if (!uuidRegex.test(id)) {
+      return c.json({ error: 'Invalid article ID' }, 400);
+    }
+    try {
+      const article = unarchiveArticle(db, id);
+      if (!article) {
+        return c.json({ error: 'Article not found' }, 404);
+      }
+      return c.json({ data: article });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 409);
+    }
   });
 
   return app;
