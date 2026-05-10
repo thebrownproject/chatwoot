@@ -2,15 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { app } from '../server.js';
 
 describe('API integration tests', () => {
-  it('returns 404 for unknown routes', async () => {
+  it('returns JSON 404 for unknown routes', async () => {
     const res = await app.request('/api/v1/nonexistent');
     expect(res.status).toBe(404);
-  });
-
-  it('returns text body for 404', async () => {
-    const res = await app.request('/api/v1/nonexistent');
-    const body = await res.text();
-    expect(body.length).toBeGreaterThan(0);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Not found' });
   });
 
   it('health endpoint has correct content-type', async () => {
@@ -38,6 +35,12 @@ describe('API integration tests', () => {
     });
     const acao = res.headers.get('access-control-allow-origin');
     expect(acao).toBeTruthy();
+  });
+
+  it('sets security headers', async () => {
+    const res = await app.request('/api/v1/health');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN');
   });
 
   it('API docs endpoint lists endpoints', async () => {

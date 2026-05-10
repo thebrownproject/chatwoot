@@ -18,6 +18,7 @@ const WINDOW_MS = 60 * 1000; // 1 minute
 const DEFAULT_MAX_REQUESTS = process.env.NODE_ENV === 'production' ? 100 : 1_000;
 const MAX_REQUESTS = Number(process.env.RATE_LIMIT_MAX_REQUESTS ?? DEFAULT_MAX_REQUESTS);
 const RATE_LIMIT_DISABLED = process.env.RATE_LIMIT_DISABLED === 'true';
+const MAX_STORE_SIZE = 10_000;
 
 /** Prune entries older than the window. Called periodically to prevent memory leaks. */
 function prune(): void {
@@ -50,6 +51,12 @@ export const rateLimiter: MiddlewareHandler = async (c, next) => {
 
   let entry = store.get(ip);
   if (!entry) {
+    if (store.size >= MAX_STORE_SIZE) {
+      prune();
+    }
+    if (store.size >= MAX_STORE_SIZE) {
+      return c.json({ error: 'Too many requests' }, 429);
+    }
     entry = { timestamps: [] };
     store.set(ip, entry);
   }
