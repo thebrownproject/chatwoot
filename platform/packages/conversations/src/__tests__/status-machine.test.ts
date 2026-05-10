@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   validateTransition,
   allowedTransitions,
@@ -65,6 +65,9 @@ describe('allowedTransitions', () => {
 });
 
 describe('transitionConversation', () => {
+  const noopUpdate = async () => {};
+  const noopEvent = async () => {};
+
   it('executes a valid transition and calls callbacks', async () => {
     let updatedData: unknown = null;
     let eventData: unknown = null;
@@ -102,8 +105,9 @@ describe('transitionConversation', () => {
       actorId: 'user-1',
       currentStatus: 'resolved',
       newStatus: 'snoozed',
-      onUpdate: async () => {},
-      onEvent: async () => {},
+      snoozedUntil: new Date(Date.now() + 60_000),
+      onUpdate: noopUpdate,
+      onEvent: noopEvent,
     });
 
     expect(result).toEqual({
@@ -114,7 +118,7 @@ describe('transitionConversation', () => {
 
   it('sets snoozedUntil when transitioning to snoozed', async () => {
     let updatedData: unknown = null;
-    const snoozeDate = new Date('2026-05-10T09:00:00Z');
+    const snoozeDate = new Date(Date.now() + 3_600_000);
 
     await transitionConversation({
       conversationId: 'conv-1',
@@ -125,7 +129,7 @@ describe('transitionConversation', () => {
       onUpdate: async (data) => {
         updatedData = data;
       },
-      onEvent: async () => {},
+      onEvent: noopEvent,
     });
 
     expect(updatedData).toEqual({
@@ -146,7 +150,7 @@ describe('transitionConversation', () => {
       onUpdate: async (data) => {
         updatedData = data;
       },
-      onEvent: async () => {},
+      onEvent: noopEvent,
     });
 
     expect(updatedData).toEqual({
@@ -156,7 +160,24 @@ describe('transitionConversation', () => {
     });
   });
 
-  it('uses "reopened" event type when transitioning to open', async () => {
+  it('uses "reopened" event type when reopening from resolved', async () => {
+    let eventData: Record<string, unknown> = {};
+
+    await transitionConversation({
+      conversationId: 'conv-1',
+      actorId: 'user-1',
+      currentStatus: 'resolved',
+      newStatus: 'open',
+      onUpdate: noopUpdate,
+      onEvent: async (event) => {
+        eventData = event;
+      },
+    });
+
+    expect(eventData['eventType']).toBe('reopened');
+  });
+
+  it('uses "unsnoozed" event type when opening from snoozed', async () => {
     let eventData: Record<string, unknown> = {};
 
     await transitionConversation({
@@ -164,13 +185,13 @@ describe('transitionConversation', () => {
       actorId: 'user-1',
       currentStatus: 'snoozed',
       newStatus: 'open',
-      onUpdate: async () => {},
+      onUpdate: noopUpdate,
       onEvent: async (event) => {
         eventData = event;
       },
     });
 
-    expect(eventData['eventType']).toBe('reopened');
+    expect(eventData['eventType']).toBe('unsnoozed');
   });
 
   it('uses "status_changed" event type for pending transition', async () => {
@@ -181,12 +202,121 @@ describe('transitionConversation', () => {
       actorId: 'user-1',
       currentStatus: 'open',
       newStatus: 'pending',
-      onUpdate: async () => {},
+      onUpdate: noopUpdate,
       onEvent: async (event) => {
         eventData = event;
       },
     });
 
     expect(eventData['eventType']).toBe('status_changed');
+  });
+
+  it('rejects snooze without snoozedUntil date', async () => {
+    const result = await transitionConversation({
+      conversationId: 'conv-1',
+      actorId: 'user-1',
+      currentStatus: 'open',
+      newStatus: 'snoozed',
+      onUpdate: noopUpdate,
+      onEvent: noopEvent,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'snoozedUntil is required when transitioning to snoozed',
+    });
+  });
+
+  it('rejects snooze with past date', async () => {
+    const result = await transitionConversation({
+      conversationId: 'conv-1',
+      actorId: 'user-1',
+      currentStatus: 'open',
+      newStatus: 'snoozed',
+      snoozedUntil: new Date('2020-01-01T00:00:00Z'),
+      onUpdate: noopUpdate,
+      onEvent: noopEvent,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'snoozedUntil must be in the future',
+    });
+  });
+
+  it('does not call onUpdate or onEvent on invalid transition', async () => {
+    const onUpdate = vi.fn();
+    const onEvent = vi.fn();
+
+    await transitionConversation({
+      conversationId: 'conv-1',
+      actorId: 'user-1',
+      currentStatus: 'resolved',
+      newStatus: 'pending',
+      onUpdate,
+      onEvent,
+    });
+
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('propagates onUpdate errors without calling onEvent', async () => {
+    const onEvent = vi.fn();
+
+    await expect(
+      transitionConversation({
+        conversationId: 'conv-1',
+        actorId: 'user-1',
+        currentStatus: 'open',
+        newStatus: 'resolved',
+        onUpdate: async () => {
+          throw new Error('DB write failed');
+        },
+        onEvent,
+      }),
+    ).rejects.toThrow('DB write failed');
+
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('propagates onEvent errors after onUpdate succeeds', async () => {
+    const onUpdate = vi.fn();
+
+    await expect(
+      transitionConversation({
+        conversationId: 'conv-1',
+        actorId: 'user-1',
+        currentStatus: 'open',
+        newStatus: 'resolved',
+        onUpdate,
+        onEvent: async () => {
+          throw new Error('Event write failed');
+        },
+      }),
+    ).rejects.toThrow('Event write failed');
+
+    expect(onUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('resolvedAt is a Date close to now when resolving', async () => {
+    let resolvedAt: Date | null = null;
+    const before = new Date();
+
+    await transitionConversation({
+      conversationId: 'conv-1',
+      actorId: 'user-1',
+      currentStatus: 'open',
+      newStatus: 'resolved',
+      onUpdate: async (data) => {
+        resolvedAt = data.resolvedAt;
+      },
+      onEvent: noopEvent,
+    });
+
+    const after = new Date();
+    expect(resolvedAt).toBeInstanceOf(Date);
+    expect((resolvedAt as unknown as Date).getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect((resolvedAt as unknown as Date).getTime()).toBeLessThanOrEqual(after.getTime());
   });
 });

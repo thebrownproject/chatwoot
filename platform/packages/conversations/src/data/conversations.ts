@@ -486,9 +486,6 @@ export async function snoozeConversation(
   actorId: string,
   until: Date,
 ): Promise<TransitionResult> {
-  if (until <= new Date()) {
-    return { ok: false, error: 'Snooze date must be in the future' };
-  }
   return applyTransition(db, id, actorId, 'snoozed', until);
 }
 
