@@ -22,6 +22,14 @@ export async function checkSlaBreaches(
 ): Promise<SlaBreach[]> {
   const firstReplyMs = options?.firstReplyMs ?? SLA_DEFAULTS.FIRST_REPLY_MS;
   const resolutionMs = options?.resolutionMs ?? SLA_DEFAULTS.RESOLUTION_MS;
+
+  if (firstReplyMs <= 0 || resolutionMs <= 0) {
+    throw new Error('SLA thresholds must be positive numbers');
+  }
+  if (!Number.isFinite(firstReplyMs) || !Number.isFinite(resolutionMs)) {
+    throw new Error('SLA thresholds must be finite numbers');
+  }
+
   const now = new Date();
 
   const firstReplyThreshold = new Date(now.getTime() - firstReplyMs);
@@ -101,6 +109,13 @@ export async function getSlaStats(
 ): Promise<SlaStats> {
   const firstReplyMs = options?.firstReplyMs ?? SLA_DEFAULTS.FIRST_REPLY_MS;
   const resolutionMs = options?.resolutionMs ?? SLA_DEFAULTS.RESOLUTION_MS;
+
+  if (firstReplyMs <= 0 || resolutionMs <= 0) {
+    throw new Error('SLA thresholds must be positive numbers');
+  }
+  if (!Number.isFinite(firstReplyMs) || !Number.isFinite(resolutionMs)) {
+    throw new Error('SLA thresholds must be finite numbers');
+  }
 
   const conditions: string[] = [];
   const params: unknown[] = [firstReplyMs / 1000, resolutionMs / 1000];

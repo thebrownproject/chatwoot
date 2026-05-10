@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getConversationMetrics,
   getAgentMetrics,
+  getTeamMetrics,
   getChannelMetrics,
 } from '../src/data/metrics.js';
 import type { MetricsDb } from '../src/data/metrics.js';
@@ -242,5 +243,68 @@ describe('analytics metrics', () => {
     expect(email).toBeDefined();
     expect(email!.total).toBe(2);
     expect(email!.open).toBe(2);
+  });
+
+  it('returns zero metrics for empty dataset', async () => {
+    const db = createMockDb([]);
+    const metrics = await getConversationMetrics(db);
+
+    expect(metrics.total).toBe(0);
+    expect(metrics.byStatus.open).toBe(0);
+    expect(metrics.avgFirstReplyMs).toBeNull();
+    expect(metrics.avgResolutionMs).toBeNull();
+    expect(metrics.resolvedToday).toBe(0);
+  });
+
+  it('returns zeros for empty agentId', async () => {
+    const db = createMockDb(sampleConversations);
+    const metrics = await getAgentMetrics(db, '');
+
+    expect(metrics.conversationsAssigned).toBe(0);
+    expect(metrics.conversationsResolved).toBe(0);
+    expect(metrics.avgResponseMs).toBeNull();
+    expect(metrics.currentOpen).toBe(0);
+  });
+
+  it('returns zeros for whitespace-only agentId', async () => {
+    const db = createMockDb(sampleConversations);
+    const metrics = await getAgentMetrics(db, '   ');
+
+    expect(metrics.conversationsAssigned).toBe(0);
+  });
+
+  it('returns zeros for empty teamId', async () => {
+    const db = createMockDb(sampleConversations);
+    const metrics = await getTeamMetrics(db, '');
+
+    expect(metrics.conversationsAssigned).toBe(0);
+    expect(metrics.conversationsResolved).toBe(0);
+    expect(metrics.avgFirstReplyMs).toBeNull();
+    expect(metrics.avgResolutionMs).toBeNull();
+    expect(metrics.currentOpen).toBe(0);
+  });
+
+  it('handles single conversation for accurate avg calculation', async () => {
+    const created = new Date(Date.now() - 60 * 60 * 1000);
+    const singleConv: MockConversation[] = [{
+      id: 'conv-only',
+      status: 'resolved',
+      channel_origin: 'web_chat',
+      assignee_id: 'agent-1',
+      created_at: created,
+      first_reply_at: new Date(created.getTime() + 5 * 60 * 1000),
+      resolved_at: new Date(created.getTime() + 30 * 60 * 1000),
+    }];
+    const db = createMockDb(singleConv);
+    const metrics = await getConversationMetrics(db);
+
+    expect(metrics.avgFirstReplyMs).toBeCloseTo(5 * 60 * 1000, -2);
+    expect(metrics.avgResolutionMs).toBeCloseTo(30 * 60 * 1000, -2);
+  });
+
+  it('returns empty channel metrics for empty dataset', async () => {
+    const db = createMockDb([]);
+    const metrics = await getChannelMetrics(db);
+    expect(metrics).toHaveLength(0);
   });
 });

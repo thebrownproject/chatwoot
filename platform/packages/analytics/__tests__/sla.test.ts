@@ -180,6 +180,7 @@ describe('SLA breach detection', () => {
 describe('SLA stats', () => {
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const twentyFiveHoursAgo = new Date(now.getTime() - 25 * 60 * 60 * 1000);
 
   it('calculates SLA compliance rate', async () => {
     const conversations: MockConversation[] = [
@@ -234,5 +235,63 @@ describe('SLA stats', () => {
     expect(stats.complianceRate).toBe(100);
     expect(stats.firstReplyBreaches).toBe(0);
     expect(stats.resolutionBreaches).toBe(0);
+  });
+
+  it('rejects zero firstReplyMs threshold', async () => {
+    const db = createMockDb([]);
+    await expect(getSlaStats(db, undefined, { firstReplyMs: 0 })).rejects.toThrow('SLA thresholds must be positive');
+  });
+
+  it('rejects negative resolutionMs threshold', async () => {
+    const db = createMockDb([]);
+    await expect(getSlaStats(db, undefined, { resolutionMs: -1000 })).rejects.toThrow('SLA thresholds must be positive');
+  });
+
+  it('rejects Infinity threshold', async () => {
+    const db = createMockDb([]);
+    await expect(checkSlaBreaches(db, { firstReplyMs: Infinity })).rejects.toThrow('SLA thresholds must be finite');
+  });
+
+  it('rejects NaN threshold', async () => {
+    const db = createMockDb([]);
+    await expect(checkSlaBreaches(db, { firstReplyMs: NaN })).rejects.toThrow('SLA thresholds must be finite');
+  });
+
+  it('detects both first_reply and resolution breach for same conversation', async () => {
+    const conversations: MockConversation[] = [
+      {
+        id: 'conv-both',
+        status: 'open',
+        created_at: twentyFiveHoursAgo,
+        first_reply_at: null,
+        resolved_at: null,
+      },
+    ];
+
+    const db = createMockDb(conversations);
+    const breaches = await checkSlaBreaches(db);
+
+    const firstReply = breaches.filter((b) => b.type === 'first_reply');
+    const resolution = breaches.filter((b) => b.type === 'resolution');
+    expect(firstReply).toHaveLength(1);
+    expect(resolution).toHaveLength(1);
+    expect(firstReply[0]!.conversationId).toBe('conv-both');
+    expect(resolution[0]!.conversationId).toBe('conv-both');
+  });
+
+  it('excludes resolved conversations from breach detection', async () => {
+    const conversations: MockConversation[] = [
+      {
+        id: 'conv-resolved',
+        status: 'resolved',
+        created_at: twentyFiveHoursAgo,
+        first_reply_at: null,
+        resolved_at: now,
+      },
+    ];
+
+    const db = createMockDb(conversations);
+    const breaches = await checkSlaBreaches(db);
+    expect(breaches.filter((b) => b.type === 'first_reply')).toHaveLength(0);
   });
 });
