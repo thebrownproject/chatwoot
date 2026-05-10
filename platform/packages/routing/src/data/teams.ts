@@ -5,23 +5,24 @@ import type {
   TeamMember,
   TeamMemberRole,
 } from '../types.js';
+import { clearRoundRobinForTeam } from '../engine/assigner.js';
 
-/** List all teams. */
 export function listTeams(db: RoutingDb): Promise<Team[]> {
   return db.listTeams();
 }
 
-/** Get a single team by ID. */
 export function getTeam(db: RoutingDb, id: string): Promise<Team | null> {
   return db.getTeam(id);
 }
 
-/** Create a new team. */
 export function createTeam(db: RoutingDb, data: TeamCreate): Promise<Team> {
-  return db.createTeam(data);
+  const trimmed = data.name.trim();
+  if (trimmed.length === 0) {
+    throw new Error('Team name cannot be empty or whitespace-only');
+  }
+  return db.createTeam({ name: trimmed });
 }
 
-/** Delete a team. Returns true if deleted, false if not found. */
 export async function deleteTeam(db: RoutingDb, id: string): Promise<boolean> {
   const rules = await db.listRoutingRules();
   const activeRulesTargetingTeam = rules.filter(
@@ -32,10 +33,11 @@ export async function deleteTeam(db: RoutingDb, id: string): Promise<boolean> {
       `Cannot delete team: ${activeRulesTargetingTeam.length} active routing rule(s) target this team. Deactivate or reassign them first.`,
     );
   }
-  return db.deleteTeam(id);
+  clearRoundRobinForTeam(id);
+  const deleted = await db.deleteTeam(id);
+  return deleted;
 }
 
-/** Get all members of a team. */
 export function getTeamMembers(
   db: RoutingDb,
   teamId: string,
@@ -43,17 +45,19 @@ export function getTeamMembers(
   return db.getTeamMembers(teamId);
 }
 
-/** Add a member to a team. Defaults to 'member' role. */
-export function addTeamMember(
+export async function addTeamMember(
   db: RoutingDb,
   teamId: string,
   userId: string,
   role: TeamMemberRole = 'member',
 ): Promise<TeamMember> {
+  const existing = await db.getTeamMembers(teamId);
+  if (existing.some((m) => m.userId === userId)) {
+    throw new Error(`User ${userId} is already a member of team ${teamId}`);
+  }
   return db.addTeamMember(teamId, userId, role);
 }
 
-/** Remove a member from a team. */
 export function removeTeamMember(
   db: RoutingDb,
   teamId: string,

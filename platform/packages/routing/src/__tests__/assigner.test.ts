@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { executeAction, roundRobin, resetRoundRobin } from '../engine/assigner.js';
+import { executeAction, roundRobin, resetRoundRobin, clearRoundRobinForTeam } from '../engine/assigner.js';
 import { createMockDb } from './helpers.js';
 
 describe('roundRobin', () => {
@@ -121,5 +121,84 @@ describe('executeAction', () => {
     await expect(
       executeAction(db, 'conv-1', 'assign_team', 'team', team.id),
     ).rejects.toThrow('No members in team');
+  });
+});
+
+describe('clearRoundRobinForTeam', () => {
+  beforeEach(() => {
+    resetRoundRobin();
+  });
+
+  it('resets the round-robin index for a specific team', async () => {
+    const db = createMockDb();
+    const team = await db.createTeam({ name: 'Support' });
+    await db.addTeamMember(team.id, 'user-a', 'member');
+    await db.addTeamMember(team.id, 'user-b', 'member');
+
+    expect(await roundRobin(db, team.id)).toBe('user-a');
+    expect(await roundRobin(db, team.id)).toBe('user-b');
+
+    clearRoundRobinForTeam(team.id);
+
+    expect(await roundRobin(db, team.id)).toBe('user-a');
+  });
+
+  it('does not affect other teams', async () => {
+    const db = createMockDb();
+    const team1 = await db.createTeam({ name: 'Team 1' });
+    const team2 = await db.createTeam({ name: 'Team 2' });
+    await db.addTeamMember(team1.id, 'user-a', 'member');
+    await db.addTeamMember(team1.id, 'user-b', 'member');
+    await db.addTeamMember(team2.id, 'user-x', 'member');
+    await db.addTeamMember(team2.id, 'user-y', 'member');
+
+    expect(await roundRobin(db, team1.id)).toBe('user-a');
+    expect(await roundRobin(db, team2.id)).toBe('user-x');
+
+    clearRoundRobinForTeam(team1.id);
+
+    expect(await roundRobin(db, team1.id)).toBe('user-a');
+    expect(await roundRobin(db, team2.id)).toBe('user-y');
+  });
+});
+
+describe('round-robin fairness', () => {
+  beforeEach(() => {
+    resetRoundRobin();
+  });
+
+  it('distributes evenly across many assignments', async () => {
+    const db = createMockDb();
+    const team = await db.createTeam({ name: 'Fair' });
+    await db.addTeamMember(team.id, 'user-a', 'member');
+    await db.addTeamMember(team.id, 'user-b', 'member');
+    await db.addTeamMember(team.id, 'user-c', 'member');
+
+    const counts = new Map<string, number>();
+    for (let i = 0; i < 30; i++) {
+      const userId = await roundRobin(db, team.id);
+      if (userId) counts.set(userId, (counts.get(userId) ?? 0) + 1);
+    }
+    expect(counts.get('user-a')).toBe(10);
+    expect(counts.get('user-b')).toBe(10);
+    expect(counts.get('user-c')).toBe(10);
+  });
+
+  it('wraps around correctly when index exceeds member count after removal', async () => {
+    const db = createMockDb();
+    const team = await db.createTeam({ name: 'Shrink' });
+    await db.addTeamMember(team.id, 'user-a', 'member');
+    await db.addTeamMember(team.id, 'user-b', 'member');
+    await db.addTeamMember(team.id, 'user-c', 'member');
+
+    expect(await roundRobin(db, team.id)).toBe('user-a');
+    expect(await roundRobin(db, team.id)).toBe('user-b');
+    expect(await roundRobin(db, team.id)).toBe('user-c');
+
+    await db.removeTeamMember(team.id, 'user-b');
+    await db.removeTeamMember(team.id, 'user-c');
+
+    const result = await roundRobin(db, team.id);
+    expect(result).toBe('user-a');
   });
 });
