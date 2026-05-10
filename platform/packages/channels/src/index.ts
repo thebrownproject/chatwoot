@@ -61,6 +61,7 @@ export { manifest } from './manifest.js';
 // ── Email Channel Adapter (PR #10) ──
 
 export { EmailAdapter, EmailParseError, sanitizeInboundHtml } from './adapters/email.js';
+export { sanitizeInboundHtmlRegex } from './sanitize-html.js';
 export {
   matchToConversation,
   generateMessageId,

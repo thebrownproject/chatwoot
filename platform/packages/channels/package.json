@@ -16,10 +16,12 @@
   },
   "dependencies": {
     "hono": "^4.7.0",
-    "zod": "^3.24.0",
-    "ws": "^8.18.0"
+    "isomorphic-dompurify": "^3.12.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
     "@types/ws": "^8.5.0",
     "typescript": "^5.6.0",
     "vitest": "^3.1.0"
