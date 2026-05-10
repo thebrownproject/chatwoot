@@ -2,7 +2,16 @@ import type {
   CreateNotificationData,
   Notification,
   NotificationFilters,
+  NotificationType,
 } from '../types.js';
+
+const VALID_TYPES: Set<string> = new Set<string>([
+  'new_message', 'assignment', 'mention', 'status_change', 'escalation',
+]);
+
+export function isValidNotificationType(type: string): type is NotificationType {
+  return VALID_TYPES.has(type);
+}
 
 /**
  * Database interface for notification operations.
@@ -18,6 +27,12 @@ export async function createNotification(
   db: NotificationDb,
   data: CreateNotificationData,
 ): Promise<Notification> {
+  const title = data.title.trim();
+  const body = data.body.trim();
+  if (!title) throw new Error('Notification title cannot be empty');
+  if (!body) throw new Error('Notification body cannot be empty');
+  if (!data.userId) throw new Error('Notification userId is required');
+
   const id = crypto.randomUUID();
   const now = new Date();
 
@@ -25,7 +40,7 @@ export async function createNotification(
     `INSERT INTO notifications (id, user_id, type, title, body, conversation_id, read, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8)
      RETURNING id, user_id AS "userId", type, title, body, conversation_id AS "conversationId", read, created_at AS "createdAt", updated_at AS "updatedAt"`,
-    [id, data.userId, data.type, data.title, data.body, data.conversationId ?? null, now, now],
+    [id, data.userId, data.type, title, body, data.conversationId ?? null, now, now],
   );
 
   const notification = rows[0];
@@ -49,13 +64,16 @@ export async function listNotifications(
   }
 
   if (filters?.type !== undefined) {
+    if (!isValidNotificationType(filters.type)) {
+      throw new Error(`Invalid notification type: ${filters.type}`);
+    }
     conditions.push(`type = $${paramIdx}`);
     params.push(filters.type);
     paramIdx++;
   }
 
-  const limit = filters?.limit ?? 50;
-  const offset = filters?.offset ?? 0;
+  const limit = Math.min(Math.max(filters?.limit ?? 50, 1), 200);
+  const offset = Math.max(filters?.offset ?? 0, 0);
 
   const sql = `
     SELECT id, user_id AS "userId", type, title, body, conversation_id AS "conversationId",
@@ -72,10 +90,11 @@ export async function listNotifications(
 export async function markAsRead(
   db: NotificationDb,
   notificationId: string,
+  userId: string,
 ): Promise<boolean> {
   const result = await db.execute(
-    `UPDATE notifications SET read = true, updated_at = $2 WHERE id = $1`,
-    [notificationId, new Date()],
+    `UPDATE notifications SET read = true, updated_at = $3 WHERE id = $1 AND user_id = $2`,
+    [notificationId, userId, new Date()],
   );
   return result.rowCount > 0;
 }
@@ -105,10 +124,11 @@ export async function getUnreadCount(
 export async function deleteNotification(
   db: NotificationDb,
   id: string,
+  userId: string,
 ): Promise<boolean> {
   const result = await db.execute(
-    `DELETE FROM notifications WHERE id = $1`,
-    [id],
+    `DELETE FROM notifications WHERE id = $1 AND user_id = $2`,
+    [id, userId],
   );
   return result.rowCount > 0;
 }

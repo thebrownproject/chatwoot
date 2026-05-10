@@ -5,6 +5,7 @@ import {
   getUnreadCount,
   markAsRead,
   markAllAsRead,
+  isValidNotificationType,
 } from '../data/notifications.js';
 import { getSettings, updateSettings } from '../data/notification-settings.js';
 import type { NotificationDb } from '../data/notifications.js';
@@ -18,6 +19,8 @@ interface Env {
     userId: string;
   };
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const updateSettingsSchema = z.object({
   emailEnabled: z.boolean().optional(),
@@ -42,14 +45,27 @@ export function createNotificationRoutes() {
     const userId = c.get('userId');
     const read = c.req.query('read');
     const type = c.req.query('type');
-    const limit = c.req.query('limit');
-    const offset = c.req.query('offset');
+    const limitStr = c.req.query('limit');
+    const offsetStr = c.req.query('offset');
+
+    if (type !== undefined && !isValidNotificationType(type)) {
+      return c.json({ error: `Invalid notification type: ${type}` }, 400);
+    }
+
+    const limit = limitStr ? parseInt(limitStr, 10) : undefined;
+    const offset = offsetStr ? parseInt(offsetStr, 10) : undefined;
+    if (limitStr && (Number.isNaN(limit) || limit! < 1)) {
+      return c.json({ error: 'Invalid limit parameter' }, 400);
+    }
+    if (offsetStr && (Number.isNaN(offset) || offset! < 0)) {
+      return c.json({ error: 'Invalid offset parameter' }, 400);
+    }
 
     const notifications = await listNotifications(db, userId, {
       read: read !== undefined ? read === 'true' : undefined,
-      type: type as 'new_message' | 'assignment' | 'mention' | 'status_change' | 'escalation' | undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
+      type: type as typeof notifications[number]['type'] | undefined,
+      limit,
+      offset,
     });
 
     return c.json({ data: notifications });
@@ -66,8 +82,12 @@ export function createNotificationRoutes() {
   // POST /notifications/:id/read — mark as read
   app.post('/notifications/:id/read', async (c) => {
     const db = c.get('db');
+    const userId = c.get('userId');
     const id = c.req.param('id');
-    const success = await markAsRead(db, id);
+    if (!UUID_RE.test(id)) {
+      return c.json({ error: 'Invalid notification ID' }, 400);
+    }
+    const success = await markAsRead(db, id, userId);
     if (!success) {
       return c.json({ error: 'Notification not found' }, 404);
     }
