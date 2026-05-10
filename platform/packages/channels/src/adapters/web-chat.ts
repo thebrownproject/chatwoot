@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   Attachment,
   ChannelAdapter,
@@ -19,6 +20,13 @@ interface RawWebChatMessage {
   attachments?: Attachment[];
   timestamp?: string;
 }
+
+const VALID_SENDER_TYPES = new Set<string>([
+  'contact',
+  'system',
+  'human_agent',
+  'ai_agent',
+]);
 
 const SENDER_DISPLAY_TYPE: Record<UserType, SenderDisplayType> = {
   contact: 'contact',
@@ -47,6 +55,28 @@ export const webChatAdapter: ChannelAdapter = {
       );
     }
 
+    if (raw.body.trim().length === 0) {
+      throw new Error('Invalid web chat message: body cannot be empty or whitespace-only');
+    }
+
+    if (raw.senderType !== undefined && !VALID_SENDER_TYPES.has(raw.senderType)) {
+      throw new Error(
+        `Invalid web chat message: invalid senderType '${raw.senderType}'`,
+      );
+    }
+
+    let timestamp: Date;
+    if (raw.timestamp) {
+      timestamp = new Date(raw.timestamp);
+      if (Number.isNaN(timestamp.getTime())) {
+        throw new Error(
+          `Invalid web chat message: invalid timestamp '${raw.timestamp}'`,
+        );
+      }
+    } else {
+      timestamp = new Date();
+    }
+
     return {
       conversationId: raw.conversationId,
       senderId: raw.senderId,
@@ -57,7 +87,7 @@ export const webChatAdapter: ChannelAdapter = {
       bodyHtml: raw.bodyHtml,
       metadata: raw.metadata,
       attachments: raw.attachments,
-      timestamp: raw.timestamp ? new Date(raw.timestamp) : new Date(),
+      timestamp,
     };
   },
 
@@ -65,8 +95,6 @@ export const webChatAdapter: ChannelAdapter = {
     message: NormalizedMessage,
     _channelConfig: ChannelConfig,
   ): Promise<DeliveryResult> {
-    // Web chat delivery happens via WebSocket broadcast in the connection manager.
-    // This method returns success — the actual push is handled by ws-server.
     return {
       success: true,
       externalId: `wc_${message.conversationId}_${Date.now()}`,
@@ -78,7 +106,7 @@ export const webChatAdapter: ChannelAdapter = {
     sender: { id: string; name: string; avatarUrl?: string | undefined },
   ): FormattedMessage {
     return {
-      id: `${message.conversationId}_${message.timestamp.getTime()}`,
+      id: randomUUID(),
       conversationId: message.conversationId,
       sender: {
         id: sender.id,

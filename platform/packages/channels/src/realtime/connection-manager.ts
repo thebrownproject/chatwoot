@@ -119,7 +119,11 @@ export class ConnectionManager {
     const payload = JSON.stringify(event);
     for (const ws of targets) {
       if (ws !== excludeWs && ws.readyState === ws.OPEN) {
-        ws.send(payload);
+        try {
+          ws.send(payload);
+        } catch {
+          // Connection may close between readyState check and send; skip it
+        }
       }
     }
   }

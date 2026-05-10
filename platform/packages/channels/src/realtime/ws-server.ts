@@ -146,7 +146,14 @@ function handleClientMessage(
       break;
 
     case 'message':
-      options.onMessage?.(info.userId, event.conversationId, event.body);
+      options.onMessage?.(info.userId, event.conversationId, event.body).catch(() => {
+        ws.send(
+          JSON.stringify({
+            type: 'error',
+            message: 'Failed to process message',
+          } satisfies WsServerEvent),
+        );
+      });
       break;
   }
 }

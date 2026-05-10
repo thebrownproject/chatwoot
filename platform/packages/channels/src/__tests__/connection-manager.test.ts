@@ -198,4 +198,61 @@ describe('ConnectionManager', () => {
       expect(online).toHaveLength(2);
     });
   });
+
+  describe('error resilience', () => {
+    it('continues broadcasting when one connection throws on send', () => {
+      const { ws: ws1 } = createMockWs();
+      const { ws: ws2, sent: sent2 } = createMockWs();
+
+      ws1.send = vi.fn(() => {
+        throw new Error('Connection reset');
+      });
+
+      manager.add(ws1, { ws: ws1, userId: 'user-1', userName: 'Alice', isAuthenticated: true });
+      manager.add(ws2, { ws: ws2, userId: 'user-2', userName: 'Bob', isAuthenticated: true });
+      manager.subscribe(ws1, 'conv-1');
+      manager.subscribe(ws2, 'conv-1');
+
+      const event: WsServerEvent = { type: 'error', message: 'test' };
+      manager.broadcastToConversation('conv-1', event);
+
+      expect(sent2).toHaveLength(1);
+      expect(JSON.parse(sent2[0]!)).toEqual(event);
+    });
+
+    it('does not send to non-existent conversation subscribers', () => {
+      const event: WsServerEvent = { type: 'error', message: 'test' };
+      expect(() => manager.broadcastToConversation('nonexistent', event)).not.toThrow();
+    });
+
+    it('does not send to non-existent user', () => {
+      const event: WsServerEvent = { type: 'error', message: 'test' };
+      expect(() => manager.sendToUser('nonexistent', event)).not.toThrow();
+    });
+  });
+
+  describe('remove edge cases', () => {
+    it('returns undefined for unknown websocket', () => {
+      const { ws } = createMockWs();
+      expect(manager.remove(ws)).toBeUndefined();
+    });
+
+    it('handles duplicate subscribe gracefully', () => {
+      const { ws } = createMockWs();
+      manager.add(ws, { ws, userId: 'user-1', userName: 'Alice', isAuthenticated: true });
+
+      manager.subscribe(ws, 'conv-1');
+      manager.subscribe(ws, 'conv-1');
+
+      expect(manager.getConversationSubscriberCount('conv-1')).toBe(1);
+    });
+
+    it('handles unsubscribe from non-subscribed conversation', () => {
+      const { ws } = createMockWs();
+      manager.add(ws, { ws, userId: 'user-1', userName: 'Alice', isAuthenticated: true });
+
+      expect(manager.unsubscribe(ws, 'conv-1')).toBe(true);
+      expect(manager.getConversationSubscriberCount('conv-1')).toBe(0);
+    });
+  });
 });
