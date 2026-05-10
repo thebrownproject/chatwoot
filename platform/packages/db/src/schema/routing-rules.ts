@@ -28,7 +28,7 @@ export const routingRules = pgTable('routing_rules', {
     .default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
   priority: integer('priority').notNull(),
-  conditions: jsonb('conditions').default({}),
+  conditions: jsonb('conditions').notNull().default({}),
   action: routingActionEnum('action').notNull(),
   targetType: routingTargetTypeEnum('target_type').notNull(),
   targetId: uuid('target_id').notNull(),

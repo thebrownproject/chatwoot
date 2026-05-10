@@ -18,6 +18,7 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
+import { tz } from './column-helpers.js';
 import { users } from './users.js';
 import { messages } from './messages.js';
 import { conversationLabels } from './labels.js';
@@ -61,18 +62,18 @@ export const conversations = pgTable(
     displayId: integer('display_id').generatedAlwaysAsIdentity().unique(),
     status: conversationStatusEnum('status').notNull().default('open'),
     channelOrigin: channelOriginEnum('channel_origin').notNull(),
-    assigneeId: uuid('assignee_id').references(() => users.id),
+    assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
     subject: text('subject'),
     priority: priorityEnum('priority').notNull().default('medium'),
-    snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
-    firstReplyAt: timestamp('first_reply_at', { withTimezone: true }),
-    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    snoozedUntil: timestamp('snoozed_until', tz),
+    firstReplyAt: timestamp('first_reply_at', tz),
+    resolvedAt: timestamp('resolved_at', tz),
     metadata: jsonb('metadata').default({}),
     searchVector: tsvector('search_vector').default(sql`''::tsvector`),
-    createdAt: timestamp('created_at', { withTimezone: true })
+    createdAt: timestamp('created_at', tz)
       .notNull()
       .default(sql`now()`),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
+    updatedAt: timestamp('updated_at', tz)
       .notNull()
       .default(sql`now()`)
       .$onUpdate(() => new Date()),
@@ -109,15 +110,15 @@ export const conversationParticipants = pgTable(
       .default(sql`gen_random_uuid()`),
     conversationId: uuid('conversation_id')
       .notNull()
-      .references(() => conversations.id),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     userId: uuid('user_id')
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: 'cascade' }),
     role: participantRoleEnum('role').notNull(),
-    joinedAt: timestamp('joined_at', { withTimezone: true })
+    joinedAt: timestamp('joined_at', tz)
       .notNull()
       .default(sql`now()`),
-    leftAt: timestamp('left_at', { withTimezone: true }),
+    leftAt: timestamp('left_at', tz),
   },
   (table) => [
     unique('uq_conversation_participant').on(
@@ -149,13 +150,13 @@ export const conversationEvents = pgTable(
       .default(sql`gen_random_uuid()`),
     conversationId: uuid('conversation_id')
       .notNull()
-      .references(() => conversations.id),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     actorId: uuid('actor_id')
       .notNull()
       .references(() => users.id),
     eventType: text('event_type').notNull(),
     payload: jsonb('payload').default({}),
-    createdAt: timestamp('created_at', { withTimezone: true })
+    createdAt: timestamp('created_at', tz)
       .notNull()
       .default(sql`now()`),
   },

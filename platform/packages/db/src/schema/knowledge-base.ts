@@ -57,7 +57,7 @@ export const categories = pgTable('categories', {
   slug: text('slug').notNull(),
   description: text('description'),
   position: integer('position').notNull().default(0),
-  parentCategoryId: uuid('parent_category_id'),
+  parentCategoryId: uuid('parent_category_id').references(() => categories.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', tz).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', tz)
     .notNull()

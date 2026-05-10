@@ -1,6 +1,7 @@
 import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
+  index,
   jsonb,
   pgEnum,
   pgTable,
@@ -10,6 +11,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+import { tz } from './column-helpers.js';
 import { conversations } from './conversations.js';
 
 export const channelTypeEnum = pgEnum('channel_type', [
@@ -28,14 +30,16 @@ export const channels = pgTable('channels', {
   name: text('name').notNull(),
   config: jsonb('config').default({}),
   active: boolean('active').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true })
+  createdAt: timestamp('created_at', tz)
     .notNull()
     .default(sql`now()`),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
+  updatedAt: timestamp('updated_at', tz)
     .notNull()
     .default(sql`now()`)
     .$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index('idx_channels_type').on(table.type),
+]);
 
 export const channelsRelations = relations(channels, ({ many }) => ({
   channelConversations: many(channelConversations),
@@ -49,10 +53,10 @@ export const channelConversations = pgTable(
       .default(sql`gen_random_uuid()`),
     channelId: uuid('channel_id')
       .notNull()
-      .references(() => channels.id),
+      .references(() => channels.id, { onDelete: 'cascade' }),
     conversationId: uuid('conversation_id')
       .notNull()
-      .references(() => conversations.id),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     externalMetadata: jsonb('external_metadata').default({}),
   },
