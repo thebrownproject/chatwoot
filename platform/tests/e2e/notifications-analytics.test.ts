@@ -1,7 +1,7 @@
 /**
  * E2E: Notifications and analytics
  *
- * Notification dispatch, settings, metrics, SLA.
+ * Notification dispatch, settings, metrics, SLA, core hooks, event bus.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -11,6 +11,204 @@ let p: Platform;
 
 beforeEach(() => {
   p = createPlatform();
+});
+
+describe('Core hooks — cross-module integration', () => {
+  it('onConversationEvent dispatches assignment notification', async () => {
+    const agent = p.users.create({ type: 'human_agent', name: 'Joanna' });
+    const admin = p.users.create({ type: 'human_agent', name: 'Admin' });
+    const hookDb = p.createHookDb();
+
+    await p.hooks.onConversationEvent(hookDb, {
+      id: 'event-1',
+      conversationId: 'conv-1',
+      actorId: admin.id,
+      eventType: 'assigned',
+      payload: { assigneeId: agent.id },
+    });
+
+    const notifications = p.notifications.getForUser(agent.id);
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]!.type).toBe('assigned');
+  });
+
+  it('onConversationEvent does not notify the actor', async () => {
+    const agent = p.users.create({ type: 'human_agent', name: 'Self-assigner' });
+    const hookDb = p.createHookDb();
+
+    // Agent assigns themselves -- should not get notified
+    await p.hooks.onConversationEvent(hookDb, {
+      id: 'event-1',
+      conversationId: 'conv-1',
+      actorId: agent.id,
+      eventType: 'assigned',
+      payload: { assigneeId: agent.id },
+    });
+
+    const notifications = p.notifications.getForUser(agent.id);
+    expect(notifications).toHaveLength(0);
+  });
+
+  it('onConversationEvent dispatches escalation to team leads', async () => {
+    const lead = p.users.create({ type: 'human_agent', name: 'Team Lead' });
+    const agent = p.users.create({ type: 'ai_agent', name: 'Ron' });
+
+    // Create team with lead
+    const team = await p.routingDb.createTeam({ name: 'Support' });
+    await p.routingDb.addTeamMember(team.id, lead.id, 'lead');
+
+    const hookDb = p.createHookDb();
+
+    await p.hooks.onConversationEvent(hookDb, {
+      id: 'event-1',
+      conversationId: 'conv-1',
+      actorId: agent.id,
+      eventType: 'escalated',
+      payload: { reason: 'Complex legal question' },
+    });
+
+    const notifications = p.notifications.getForUser(lead.id);
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]!.type).toBe('escalated');
+  });
+
+  it('onMessageCreated sets first_reply_at for agent reply', async () => {
+    const agent = p.users.create({ type: 'human_agent', name: 'Agent' });
+    const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+
+    // Verify no first reply yet
+    expect(conv.firstReplyAt).toBeNull();
+
+    const hookDb = p.createHookDb();
+
+    const message = {
+      id: 'msg-1',
+      conversationId: conv.id,
+      senderId: agent.id,
+      visibility: 'public' as const,
+    };
+
+    await p.hooks.onMessageCreated(hookDb, message, {
+      id: conv.id,
+      status: conv.status,
+      assigneeId: null,
+      firstReplyAt: null,
+    });
+
+    const updated = await p.conversations.getById(p.db, conv.id);
+    expect(updated?.firstReplyAt).toBeInstanceOf(Date);
+  });
+
+  it('onMessageCreated does not set first_reply_at for contact message', async () => {
+    const contact = p.users.create({ type: 'contact', name: 'Customer' });
+    const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+
+    const hookDb = p.createHookDb();
+
+    await p.hooks.onMessageCreated(hookDb, {
+      id: 'msg-1',
+      conversationId: conv.id,
+      senderId: contact.id,
+      visibility: 'public',
+    }, {
+      id: conv.id,
+      status: conv.status,
+      assigneeId: null,
+      firstReplyAt: null,
+    });
+
+    const updated = await p.conversations.getById(p.db, conv.id);
+    expect(updated?.firstReplyAt).toBeNull();
+  });
+
+  it('onMessageCreated does not set first_reply_at for internal messages', async () => {
+    const agent = p.users.create({ type: 'human_agent', name: 'Agent' });
+    const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+
+    const hookDb = p.createHookDb();
+
+    await p.hooks.onMessageCreated(hookDb, {
+      id: 'msg-1',
+      conversationId: conv.id,
+      senderId: agent.id,
+      visibility: 'internal',
+    }, {
+      id: conv.id,
+      status: conv.status,
+      assigneeId: null,
+      firstReplyAt: null,
+    });
+
+    const updated = await p.conversations.getById(p.db, conv.id);
+    expect(updated?.firstReplyAt).toBeNull();
+  });
+});
+
+describe('Event bus', () => {
+  it('emits and handles events', async () => {
+    const received: string[] = [];
+
+    p.eventBus.on('conversation.resolved', async (data) => {
+      received.push(data.conversationId);
+    });
+
+    await p.eventBus.emit('conversation.resolved', {
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+    });
+
+    expect(received).toEqual(['conv-1']);
+
+    p.eventBus.clear();
+  });
+
+  it('handles errors in one handler without blocking others', async () => {
+    const results: string[] = [];
+
+    p.eventBus.on('conversation.resolved', async () => {
+      throw new Error('handler failure');
+    });
+
+    p.eventBus.on('conversation.resolved', async (data) => {
+      results.push(data.conversationId);
+    });
+
+    // Should not throw -- error is caught internally
+    await p.eventBus.emit('conversation.resolved', {
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+    });
+
+    // Second handler still ran
+    expect(results).toEqual(['conv-1']);
+
+    p.eventBus.clear();
+  });
+
+  it('off removes a specific handler', async () => {
+    const results: string[] = [];
+
+    const handler = async (data: { conversationId: string; actorId: string }) => {
+      results.push(data.conversationId);
+    };
+
+    p.eventBus.on('conversation.resolved', handler);
+    await p.eventBus.emit('conversation.resolved', {
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+    });
+    expect(results).toHaveLength(1);
+
+    p.eventBus.off('conversation.resolved', handler);
+    await p.eventBus.emit('conversation.resolved', {
+      conversationId: 'conv-2',
+      actorId: 'agent-1',
+    });
+    // Should still be 1 -- handler was removed
+    expect(results).toHaveLength(1);
+
+    p.eventBus.clear();
+  });
 });
 
 describe('Notifications', () => {

@@ -409,6 +409,74 @@ describe('Knowledge base', () => {
     });
   });
 
+  describe('Article status transition errors', () => {
+    it('throws when archiving a draft article', () => {
+      const portal = p.knowledgeBase.portals.create(p.db, {
+        name: 'Help',
+        slug: 'help',
+      });
+
+      const article = p.knowledgeBase.articles.create(p.db, {
+        portalId: portal.id,
+        title: 'Draft only',
+        content: 'Cannot archive this',
+        authorId: 'author-1',
+      });
+
+      expect(article.status).toBe('draft');
+      expect(() => {
+        p.knowledgeBase.articles.archive(p.db, article.id);
+      }).toThrow(/Cannot archive a draft/);
+    });
+
+    it('throws when publishing an archived article', () => {
+      const portal = p.knowledgeBase.portals.create(p.db, {
+        name: 'Help',
+        slug: 'help',
+      });
+
+      const article = p.knowledgeBase.articles.create(p.db, {
+        portalId: portal.id,
+        title: 'Will be archived',
+        content: 'Then cannot publish',
+        authorId: 'author-1',
+      });
+
+      p.knowledgeBase.articles.publish(p.db, article.id);
+      p.knowledgeBase.articles.archive(p.db, article.id);
+
+      expect(() => {
+        p.knowledgeBase.articles.publish(p.db, article.id);
+      }).toThrow(/Cannot publish an archived/);
+    });
+  });
+
+  describe('Category deletion constraints', () => {
+    it('throws when deleting a category with children', () => {
+      const portal = p.knowledgeBase.portals.create(p.db, {
+        name: 'Help',
+        slug: 'help',
+      });
+
+      const parent = p.knowledgeBase.categories.create(p.db, {
+        portalId: portal.id,
+        name: 'Parent',
+        slug: 'parent',
+      });
+
+      p.knowledgeBase.categories.create(p.db, {
+        portalId: portal.id,
+        name: 'Child',
+        slug: 'child',
+        parentCategoryId: parent.id,
+      });
+
+      expect(() => {
+        p.knowledgeBase.categories.delete(p.db, parent.id);
+      }).toThrow(/Cannot delete category with child/);
+    });
+  });
+
   describe('Public routes (slug-based access)', () => {
     it('public portal access by slug', () => {
       p.knowledgeBase.portals.create(p.db, {

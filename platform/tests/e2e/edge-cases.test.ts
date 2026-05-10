@@ -131,8 +131,8 @@ describe('Edge cases', () => {
     });
   });
 
-  describe('Contact dedup', () => {
-    it('creates contacts with unique identifiers', () => {
+  describe('Contact identity', () => {
+    it('creates separate user records (dedup is a future identity module concern)', () => {
       const contact1 = p.users.create({
         type: 'contact',
         name: 'Jane',
@@ -144,14 +144,14 @@ describe('Edge cases', () => {
         email: 'jane@example.com',
       });
 
-      // Both created but have different IDs
+      // In-memory store creates separate records -- identity dedup happens at the module level
       expect(contact1.id).not.toBe(contact2.id);
 
-      // Both retrievable
+      // Both retrievable independently
       expect(p.users.get(contact1.id)).toBeDefined();
       expect(p.users.get(contact2.id)).toBeDefined();
 
-      // Same email
+      // Same email stored on both
       expect(contact1.email).toBe(contact2.email);
     });
 
@@ -159,10 +159,12 @@ describe('Edge cases', () => {
       const contact = p.users.create({ type: 'contact', name: 'Jane' });
       const agent = p.users.create({ type: 'human_agent', name: 'Jane Agent' });
       const bot = p.users.create({ type: 'ai_agent', name: 'Jane Bot' });
+      const system = p.users.create({ type: 'system', name: 'System' });
 
       expect(contact.type).toBe('contact');
       expect(agent.type).toBe('human_agent');
       expect(bot.type).toBe('ai_agent');
+      expect(system.type).toBe('system');
     });
   });
 
@@ -269,6 +271,126 @@ describe('Edge cases', () => {
 
       expect(conv2.displayId).toBe(conv1.displayId + 1);
       expect(conv3.displayId).toBe(conv2.displayId + 1);
+    });
+  });
+
+  describe('Pending status transitions', () => {
+    it('transitions open -> pending -> open', async () => {
+      const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+      expect(conv.status).toBe('open');
+
+      const pending = await p.conversations.pend(p.db, conv.id, 'agent-1');
+      expect(pending.ok).toBe(true);
+      if (pending.ok) {
+        expect(pending.conversation.status).toBe('pending');
+      }
+
+      const reopened = await p.conversations.reopen(p.db, conv.id, 'agent-1');
+      expect(reopened.ok).toBe(true);
+      if (reopened.ok) {
+        expect(reopened.conversation.status).toBe('open');
+      }
+    });
+
+    it('transitions pending -> snoozed', async () => {
+      const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+      await p.conversations.pend(p.db, conv.id, 'agent-1');
+
+      const until = new Date(Date.now() + 60 * 60 * 1000);
+      const snoozed = await p.conversations.snooze(p.db, conv.id, 'agent-1', until);
+      expect(snoozed.ok).toBe(true);
+      if (snoozed.ok) {
+        expect(snoozed.conversation.status).toBe('snoozed');
+      }
+    });
+
+    it('transitions pending -> resolved', async () => {
+      const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+      await p.conversations.pend(p.db, conv.id, 'agent-1');
+
+      const resolved = await p.conversations.resolve(p.db, conv.id, 'agent-1');
+      expect(resolved.ok).toBe(true);
+      if (resolved.ok) {
+        expect(resolved.conversation.status).toBe('resolved');
+      }
+    });
+
+    it('creates status_changed event for pending transition', async () => {
+      const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+      await p.conversations.pend(p.db, conv.id, 'agent-1');
+
+      const events = await p.conversations.getEvents(p.db, conv.id);
+      const pendEvent = events.find((e) => e.eventType === 'status_changed');
+      expect(pendEvent).toBeDefined();
+      expect(pendEvent?.payload).toHaveProperty('from', 'open');
+      expect(pendEvent?.payload).toHaveProperty('to', 'pending');
+    });
+  });
+
+  describe('Snooze with past date', () => {
+    it('rejects snooze with a date in the past', async () => {
+      const conv = await p.conversations.create(p.db, { channelOrigin: 'email' });
+      const pastDate = new Date(Date.now() - 60000);
+
+      const result = await p.conversations.snooze(p.db, conv.id, 'agent-1', pastDate);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain('future');
+      }
+    });
+  });
+
+  describe('Conversation update edge cases', () => {
+    it('updates subject and priority', async () => {
+      const conv = await p.conversations.create(p.db, {
+        channelOrigin: 'email',
+        subject: 'Original',
+        priority: 'low',
+      });
+
+      const updated = await p.conversations.update(p.db, conv.id, {
+        subject: 'Updated subject',
+        priority: 'urgent',
+      });
+
+      expect(updated?.subject).toBe('Updated subject');
+      expect(updated?.priority).toBe('urgent');
+    });
+
+    it('preserves other fields when updating metadata', async () => {
+      const conv = await p.conversations.create(p.db, {
+        channelOrigin: 'email',
+        subject: 'Keep me',
+        priority: 'high',
+      });
+
+      const updated = await p.conversations.update(p.db, conv.id, {
+        metadata: { tag: 'vip' },
+      });
+
+      expect(updated?.subject).toBe('Keep me');
+      expect(updated?.priority).toBe('high');
+      expect(updated?.metadata).toHaveProperty('tag', 'vip');
+    });
+  });
+
+  describe('Self-handoff prevention', () => {
+    it('throws when agent tries to hand off to self', async () => {
+      const agent = p.users.create({ type: 'ai_agent', name: 'Ron' });
+      const conv = await p.conversations.create(p.db, { channelOrigin: 'web_chat' });
+
+      await expect(
+        p.agents.handoff.requestHandoff(p.db, agent.id, conv.id, 'test', agent.id),
+      ).rejects.toThrow(/Cannot hand off to self/);
+    });
+
+    it('throws when agent-to-agent handoff targets same agent', async () => {
+      const agent = p.users.create({ type: 'ai_agent', name: 'Ron' });
+      const conv = await p.conversations.create(p.db, { channelOrigin: 'web_chat' });
+
+      await expect(
+        p.agents.handoff.agentToAgent(p.db, conv.id, agent.id, agent.id, 'test'),
+      ).rejects.toThrow(/Cannot hand off to self/);
     });
   });
 });
