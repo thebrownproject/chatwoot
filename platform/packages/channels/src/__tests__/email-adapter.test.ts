@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EmailAdapter, EmailParseError } from '../adapters/email.js';
+import { EmailAdapter, EmailParseError, sanitizeInboundHtml } from '../adapters/email.js';
 import type { EmailClient } from '../services/email-client.js';
 import type { ThreadingDb } from '../adapters/email-threading.js';
 import type { ChannelRecord, MessageForDelivery, SendResult, ChannelConversationRecord } from '../types/email.js';
@@ -96,7 +96,7 @@ describe('EmailAdapter.receive', () => {
     expect(email.subject).toBe('Re: Compliance question');
     expect(email.bodyText).toBe('Thanks for the quick reply!');
     expect(email.messageId).toBe('pm-msg-001');
-    expect(email.inReplyTo).toBe('<outbound-123@buildpass.com.au>');
+    expect(email.inReplyTo).toBe('outbound-123@buildpass.com.au');
     expect(email.attachments).toHaveLength(1);
     expect(email.attachments[0].filename).toBe('report.pdf');
     expect(email.attachments[0].size).toBe(45000);
@@ -279,5 +279,188 @@ describe('EmailAdapter.formatMessage', () => {
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&amp;');
     expect(html).toContain('&quot;quotes&quot;');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: email address normalization
+// ---------------------------------------------------------------------------
+
+describe('Email address normalization', () => {
+  const adapter = createAdapter();
+
+  it('lowercases email addresses from SendGrid', () => {
+    const payload = {
+      from: 'Alice <ALICE@EXAMPLE.COM>',
+      headers: 'From: ALICE@EXAMPLE.COM',
+    };
+    const email = adapter.receive(payload);
+    expect(email.from).toBe('alice@example.com');
+  });
+
+  it('lowercases email addresses from Postmark', () => {
+    const payload = {
+      FromFull: { Email: 'BOB@EXAMPLE.COM', Name: 'Bob' },
+      ToFull: [{ Email: 'SUPPORT@buildpass.com.au' }],
+      Subject: 'Test',
+      TextBody: 'Test',
+      MessageID: 'pm-1',
+      Headers: [],
+    };
+    const email = adapter.receive(payload);
+    expect(email.from).toBe('bob@example.com');
+  });
+
+  it('lowercases bare email addresses (no angle brackets)', () => {
+    const payload = {
+      from: 'User@Example.COM',
+      headers: 'From: User@Example.COM',
+    };
+    const email = adapter.receive(payload);
+    expect(email.from).toBe('user@example.com');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: Postmark header normalization (angle bracket stripping)
+// ---------------------------------------------------------------------------
+
+describe('Postmark header normalization', () => {
+  const adapter = createAdapter();
+
+  it('strips angle brackets from Postmark In-Reply-To header', () => {
+    const payload = {
+      FromFull: { Email: 'user@example.com', Name: 'User' },
+      ToFull: [{ Email: 'support@buildpass.com.au' }],
+      Subject: 'Reply',
+      TextBody: 'Reply text',
+      MessageID: 'pm-2',
+      Headers: [
+        { Name: 'In-Reply-To', Value: '<original@buildpass.com.au>' },
+      ],
+    };
+    const email = adapter.receive(payload);
+    expect(email.inReplyTo).toBe('original@buildpass.com.au');
+  });
+
+  it('strips angle brackets from Postmark References header entries', () => {
+    const payload = {
+      FromFull: { Email: 'user@example.com', Name: 'User' },
+      ToFull: [{ Email: 'support@buildpass.com.au' }],
+      Subject: 'Reply',
+      TextBody: 'Reply text',
+      MessageID: 'pm-3',
+      Headers: [
+        { Name: 'References', Value: '<first@example.com> <second@example.com>' },
+      ],
+    };
+    const email = adapter.receive(payload);
+    expect(email.references).toEqual(['first@example.com', 'second@example.com']);
+  });
+
+  it('matches IDs consistently across SendGrid and Postmark formats', () => {
+    const sendGridPayloadLocal = {
+      from: 'user@example.com',
+      headers: 'Message-ID: <msg-100@buildpass.com.au>\r\nFrom: user@example.com',
+    };
+    const postmarkPayloadLocal = {
+      FromFull: { Email: 'user@example.com', Name: 'User' },
+      ToFull: [{ Email: 'support@buildpass.com.au' }],
+      Subject: 'Reply',
+      TextBody: 'Reply',
+      MessageID: 'pm-4',
+      Headers: [
+        { Name: 'In-Reply-To', Value: '<msg-100@buildpass.com.au>' },
+      ],
+    };
+
+    const sgEmail = adapter.receive(sendGridPayloadLocal);
+    const pmEmail = adapter.receive(postmarkPayloadLocal);
+
+    // The message ID from SendGrid should match the In-Reply-To from Postmark
+    expect(sgEmail.messageId).toBe(pmEmail.inReplyTo);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: deliver() validation
+// ---------------------------------------------------------------------------
+
+describe('EmailAdapter.deliver validation', () => {
+  it('returns error when senderEmail is missing', async () => {
+    const adapter = createAdapter();
+    const message: MessageForDelivery = {
+      id: 'msg-1',
+      conversationId: 'conv-1',
+      senderId: 'agent-1',
+      senderName: 'Agent',
+      body: 'Response',
+      createdAt: new Date(),
+    };
+    const channel: ChannelRecord = {
+      id: 'ch-1',
+      type: 'email',
+      name: 'Email',
+      config: {
+        provider: 'sendgrid',
+        apiKey: 'key',
+        fromAddress: 'support@buildpass.com.au',
+        fromName: 'Support',
+        domain: 'buildpass.com.au',
+      },
+      active: true,
+    };
+
+    const result = await adapter.deliver(message, channel);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('No recipient email');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: sanitizeInboundHtml edge cases
+// ---------------------------------------------------------------------------
+
+describe('sanitizeInboundHtml edge cases', () => {
+  it('strips HTML entity-encoded javascript: protocol', () => {
+    const html = '<a href="&#106;avascript:alert(1)">Click</a>';
+    const result = sanitizeInboundHtml(html);
+    expect(result).not.toContain('alert');
+  });
+
+  it('strips hex-encoded javascript: protocol', () => {
+    const html = '<a href="&#x6A;avascript:alert(1)">Click</a>';
+    const result = sanitizeInboundHtml(html);
+    expect(result).not.toContain('alert');
+  });
+
+  it('strips vbscript: protocol', () => {
+    const html = '<a href="vbscript:MsgBox(1)">Click</a>';
+    const result = sanitizeInboundHtml(html);
+    expect(result).not.toContain('vbscript');
+  });
+
+  it('strips data: protocol in href', () => {
+    const html = '<a href="data:text/html,<script>alert(1)</script>">Click</a>';
+    const result = sanitizeInboundHtml(html);
+    expect(result).not.toContain('data:');
+  });
+
+  it('strips SVG tags that could contain scripts', () => {
+    const html = '<svg onload="alert(1)"><script>alert(2)</script></svg>';
+    const result = sanitizeInboundHtml(html);
+    expect(result).not.toContain('svg');
+    expect(result).not.toContain('alert');
+  });
+
+  it('strips math tags', () => {
+    const html = '<math><maction actiontype="statusline"><mn>1</mn></maction></math>';
+    const result = sanitizeInboundHtml(html);
+    expect(result).not.toContain('math');
+  });
+
+  it('preserves legitimate href attributes', () => {
+    const html = '<a href="https://example.com">Link</a>';
+    expect(sanitizeInboundHtml(html)).toBe(html);
   });
 });

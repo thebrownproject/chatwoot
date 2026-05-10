@@ -66,7 +66,7 @@ export async function matchToConversation(
  */
 export function generateMessageId(conversationId: string, domain: string): string {
   const timestamp = Date.now();
-  const random = Math.random().toString(36).slice(2, 8);
+  const random = crypto.randomUUID().slice(0, 8);
   return `${conversationId}.${timestamp}.${random}@${domain}`;
 }
 
