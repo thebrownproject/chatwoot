@@ -1,84 +1,36 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
-import type { DbClient } from '@buildpass/db';
-import { messages } from '@buildpass/db';
+import type { Db } from './db.js';
 import type { CreateMessageInput, ListMessagesInput, SearchMessagesInput, Message } from '../types/messages.js';
 
 export async function createMessage(
-  db: DbClient,
+  db: Db,
   input: CreateMessageInput,
 ): Promise<Message> {
-  if (!input.body || input.body.trim().length === 0) {
-    throw new Error('Message body cannot be empty');
+  if (!input.body.trim()) {
+    throw new Error('Message body cannot be empty or whitespace-only');
   }
-  const [row] = await db
-    .insert(messages)
-    .values({
-      conversationId: input.conversationId,
-      senderId: input.senderId,
-      type: input.type,
-      visibility: input.visibility,
-      body: input.body,
-      bodyHtml: input.bodyHtml ?? null,
-      metadata: input.metadata,
-      attachments: input.attachments,
-    })
-    .returning();
-
-  return row as Message;
+  return db.messages.create(input);
 }
 
 export async function getMessageById(
-  db: DbClient,
+  db: Db,
   id: string,
 ): Promise<Message | undefined> {
-  const [row] = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.id, id))
-    .limit(1);
-
-  return row as Message | undefined;
+  return db.messages.getById(id);
 }
 
 export async function listMessages(
-  db: DbClient,
+  db: Db,
   input: ListMessagesInput,
 ): Promise<Message[]> {
-  const conditions = [eq(messages.conversationId, input.conversationId)];
-
-  if (input.visibility) {
-    conditions.push(eq(messages.visibility, input.visibility));
-  }
-
-  const rows = await db
-    .select()
-    .from(messages)
-    .where(and(...conditions))
-    .orderBy(desc(messages.createdAt))
-    .limit(input.limit)
-    .offset(input.offset);
-
-  return rows as Message[];
+  return db.messages.list(input);
 }
 
 export async function searchMessages(
-  db: DbClient,
+  db: Db,
   input: SearchMessagesInput,
 ): Promise<Message[]> {
-  if (!input.query || input.query.trim().length === 0) {
+  if (!input.query.trim()) {
     return [];
   }
-  const rows = await db
-    .select()
-    .from(messages)
-    .where(
-      sql`to_tsvector('english', ${messages.body}) @@ plainto_tsquery('english', ${input.query})`,
-    )
-    .orderBy(
-      sql`ts_rank(to_tsvector('english', ${messages.body}), plainto_tsquery('english', ${input.query})) DESC`,
-    )
-    .limit(input.limit)
-    .offset(input.offset);
-
-  return rows as Message[];
+  return db.messages.search(input);
 }

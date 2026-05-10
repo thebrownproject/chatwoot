@@ -108,6 +108,14 @@ routes.route('/auth', createAuthRoutes({
 }));
 routes.route('/users', createUserRoutes(userDb));
 
+routes.use('/conversations/:id/messages', async (c, next) => {
+  c.set('db', adapters.conversations);
+  await next();
+});
+routes.use('/messages/*', async (c, next) => {
+  c.set('db', adapters.conversations);
+  await next();
+});
 routes.route('/', messageRoutes);
 routes.route('/', labelRoutes);
 routes.route('/', cannedResponseRoutes);

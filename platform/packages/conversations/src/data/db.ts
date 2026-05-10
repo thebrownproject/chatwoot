@@ -1,6 +1,7 @@
 import type { ParticipantRole, ConversationParticipant, ParticipantWithUser } from '../types/participants.js';
 import type { ConversationEvent, ConversationEventCreate, EventType } from '../types/events.js';
 import type { AssignedConversation, AssignedConversationsFilter, ConversationAssignee } from '../types/assignment.js';
+import type { Message, CreateMessageInput, ListMessagesInput, SearchMessagesInput } from '../types/messages.js';
 
 /**
  * Database adapter interface for the conversations module.
@@ -26,5 +27,11 @@ export type Db = {
     create(data: ConversationEventCreate): Promise<ConversationEvent>;
     list(conversationId: string): Promise<ConversationEvent[]>;
     listByType(conversationId: string, eventType: EventType): Promise<ConversationEvent[]>;
+  };
+  messages: {
+    create(input: CreateMessageInput): Promise<Message>;
+    getById(id: string): Promise<Message | undefined>;
+    list(input: ListMessagesInput): Promise<Message[]>;
+    search(input: SearchMessagesInput): Promise<Message[]>;
   };
 };

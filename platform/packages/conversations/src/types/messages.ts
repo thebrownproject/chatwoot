@@ -11,7 +11,7 @@ export const CreateMessageInput = z.object({
   senderId: z.string().uuid(),
   type: MessageType.default('text'),
   visibility: MessageVisibility.default('public'),
-  body: z.string().min(1),
+  body: z.string().min(1).refine((s) => s.trim().length > 0, { message: 'Message body cannot be whitespace-only' }),
   bodyHtml: z.string().nullish(),
   metadata: z.record(z.unknown()).default({}),
   attachments: z.array(z.object({

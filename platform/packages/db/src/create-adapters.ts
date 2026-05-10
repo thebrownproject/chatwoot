@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, lte, sql } from 'drizzle-orm';
 import type { Db } from './client.js';
 import {
   conversationEvents,
   conversationParticipants,
   conversations,
+  messages,
   permissions,
   routingRules,
   teamMembers,
@@ -519,6 +520,77 @@ function createConversationAdapters(db: Db) {
             ),
           )
           .orderBy(asc(conversationEvents.createdAt));
+      },
+    },
+    messages: {
+      async create(input: {
+        conversationId: string;
+        senderId: string;
+        type?: string;
+        visibility?: string;
+        body: string;
+        bodyHtml?: string | null;
+        metadata?: Record<string, unknown>;
+        attachments?: unknown[];
+      }) {
+        const [row] = await db
+          .insert(messages)
+          .values({
+            conversationId: input.conversationId,
+            senderId: input.senderId,
+            type: (input.type as 'text' | 'rich' | 'activity') ?? 'text',
+            visibility: (input.visibility as 'public' | 'internal') ?? 'public',
+            body: input.body,
+            bodyHtml: input.bodyHtml ?? null,
+            metadata: input.metadata ?? {},
+            attachments: input.attachments ?? [],
+          })
+          .returning();
+        if (!row) throw new Error('Failed to insert message');
+        return row;
+      },
+      async getById(id: string) {
+        const [row] = await db
+          .select()
+          .from(messages)
+          .where(eq(messages.id, id))
+          .limit(1);
+        return row ?? undefined;
+      },
+      async list(input: {
+        conversationId: string;
+        visibility?: string;
+        limit?: number;
+        offset?: number;
+      }) {
+        const conditions = [eq(messages.conversationId, input.conversationId)];
+        if (input.visibility) {
+          conditions.push(eq(messages.visibility, input.visibility as 'public' | 'internal'));
+        }
+        return db
+          .select()
+          .from(messages)
+          .where(and(...conditions))
+          .orderBy(desc(messages.createdAt))
+          .limit(input.limit ?? 50)
+          .offset(input.offset ?? 0);
+      },
+      async search(input: {
+        query: string;
+        limit?: number;
+        offset?: number;
+      }) {
+        return db
+          .select()
+          .from(messages)
+          .where(
+            sql`to_tsvector('english', ${messages.body}) @@ plainto_tsquery('english', ${input.query})`,
+          )
+          .orderBy(
+            sql`ts_rank(to_tsvector('english', ${messages.body}), plainto_tsquery('english', ${input.query})) DESC`,
+          )
+          .limit(input.limit ?? 20)
+          .offset(input.offset ?? 0);
       },
     },
   };
