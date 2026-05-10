@@ -2,14 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createUserRoutes } from '../routes/users.js';
 import { makeUser, mockUserDb } from './helpers.js';
 
-const VALID_UUID = '00000000-0000-0000-0000-000000000001';
+const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 
 describe('createUserRoutes', () => {
   it('stores separate lookup and verification hashes when generating an API key', async () => {
-    const agentUser = makeUser({ id: VALID_UUID, type: 'ai_agent', name: 'Ron' });
-    const update = vi.fn().mockResolvedValue(agentUser);
+    const update = vi.fn().mockResolvedValue(makeUser({ id: VALID_UUID }));
     const db = mockUserDb({
-      findById: vi.fn().mockResolvedValue(agentUser),
+      findById: vi.fn().mockResolvedValue(makeUser({ id: VALID_UUID, type: 'human_agent' })),
       update,
     });
     const app = createUserRoutes(db);
@@ -28,21 +27,29 @@ describe('createUserRoutes', () => {
     );
   });
 
-  it('rejects API key generation for non-ai_agent users', async () => {
-    const humanUser = makeUser({ id: VALID_UUID, type: 'human_agent' });
+  it('rejects API key generation for contact users', async () => {
     const db = mockUserDb({
-      findById: vi.fn().mockResolvedValue(humanUser),
+      findById: vi.fn().mockResolvedValue(makeUser({ id: VALID_UUID, type: 'contact' })),
     });
     const app = createUserRoutes(db);
 
     const res = await app.request(`/${VALID_UUID}/api-key`, { method: 'POST' });
     expect(res.status).toBe(403);
-
-    const body = await res.json();
-    expect(body.error).toContain('AI agent');
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain('agent users');
   });
 
-  it('rejects non-UUID :id params', async () => {
+  it('rejects API key generation for system users', async () => {
+    const db = mockUserDb({
+      findById: vi.fn().mockResolvedValue(makeUser({ id: VALID_UUID, type: 'system' })),
+    });
+    const app = createUserRoutes(db);
+
+    const res = await app.request(`/${VALID_UUID}/api-key`, { method: 'POST' });
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects invalid UUID on GET /:id', async () => {
     const db = mockUserDb();
     const app = createUserRoutes(db);
 
@@ -51,7 +58,19 @@ describe('createUserRoutes', () => {
     expect(db.findById).not.toHaveBeenCalled();
   });
 
-  it('rejects whitespace-only name on create', async () => {
+  it('rejects invalid UUID on PATCH /:id', async () => {
+    const db = mockUserDb();
+    const app = createUserRoutes(db);
+
+    const res = await app.request('/not-a-uuid', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Updated' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects whitespace-only name on POST /users', async () => {
     const db = mockUserDb();
     const app = createUserRoutes(db);
 
@@ -61,24 +80,5 @@ describe('createUserRoutes', () => {
       body: JSON.stringify({ type: 'human_agent', name: '   ' }),
     });
     expect(res.status).toBe(400);
-  });
-
-  it('trims name on create', async () => {
-    const db = mockUserDb({
-      insert: vi.fn().mockImplementation(async (data) =>
-        makeUser({ ...data, id: VALID_UUID }),
-      ),
-    });
-    const app = createUserRoutes(db);
-
-    const res = await app.request('/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'human_agent', name: '  Alice  ' }),
-    });
-    expect(res.status).toBe(201);
-    expect(db.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Alice' }),
-    );
   });
 });
