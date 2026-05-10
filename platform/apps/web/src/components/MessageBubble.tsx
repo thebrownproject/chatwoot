@@ -2,15 +2,46 @@ import { Bot, Lock, Activity } from 'lucide-react';
 import type { Message } from '@buildpass/shell';
 import { initials, formatTime } from '@buildpass/shell';
 
+const ALLOWED_TAGS = new Set([
+  'p', 'br', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li',
+  'blockquote', 'code', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'span', 'div', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
+  'hr', 'sub', 'sup', 'del', 's',
+]);
+
+const ALLOWED_ATTRS = new Set(['href', 'target', 'rel', 'class']);
+
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^>]*>.*?<\/iframe>/gi, '')
-    .replace(/<object\b[^>]*>.*?<\/object>/gi, '')
-    .replace(/<embed\b[^>]*\/?>/gi, '')
-    .replace(/<form\b[^>]*>.*?<\/form>/gi, '')
-    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
-    .replace(/javascript\s*:/gi, 'blocked:');
+  // Strip all event handlers (on*=...) across all tag formats
+  let cleaned = html.replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+
+  // Block dangerous URI schemes everywhere (href, src, action, etc.)
+  cleaned = cleaned.replace(/(javascript|vbscript|data)\s*:/gi, 'blocked:');
+
+  // Remove disallowed tags entirely (keep content for inline, strip content for dangerous)
+  const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form', 'style', 'link', 'meta', 'base', 'svg', 'math'];
+  for (const tag of dangerousTags) {
+    // Remove tags with content
+    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi'), '');
+    // Remove self-closing variants
+    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*/?>`, 'gi'), '');
+  }
+
+  // Remove any remaining tags not in allowlist
+  cleaned = cleaned.replace(/<\/?([a-z][a-z0-9]*)\b[^>]*\/?>/gi, (match, tagName: string) => {
+    if (ALLOWED_TAGS.has(tagName.toLowerCase())) {
+      // Strip disallowed attributes from allowed tags
+      return match.replace(/\s+([a-z][a-z0-9-]*)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, (attrMatch, attrName: string) => {
+        return ALLOWED_ATTRS.has(attrName.toLowerCase()) ? attrMatch : '';
+      });
+    }
+    return '';
+  });
+
+  // Force safe link targets
+  cleaned = cleaned.replace(/<a\b/gi, '<a rel="noopener noreferrer" target="_blank"');
+
+  return cleaned;
 }
 
 interface MessageBubbleProps {
@@ -25,8 +56,8 @@ export function MessageBubble({ message, isOwnMessage }: MessageBubbleProps) {
 
   if (isActivity) {
     return (
-      <div className="flex items-center justify-center gap-2 py-2">
-        <Activity className="h-3.5 w-3.5 text-slate-400" />
+      <div role="status" className="flex items-center justify-center gap-2 py-2">
+        <Activity aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" />
         <span className="text-xs text-slate-400">{message.body}</span>
         <span className="text-xs text-slate-300">{formatTime(message.createdAt)}</span>
       </div>
@@ -90,11 +121,11 @@ export function MessageBubble({ message, isOwnMessage }: MessageBubbleProps) {
           )}
         </div>
 
-        {message.attachments.length > 0 && (
+        {message.attachments && message.attachments.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
-            {message.attachments.map((attachment, i) => (
+            {message.attachments.map((attachment) => (
               <a
-                key={i}
+                key={attachment.url}
                 href={attachment.url}
                 target="_blank"
                 rel="noopener noreferrer"

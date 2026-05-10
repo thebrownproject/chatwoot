@@ -98,8 +98,8 @@ export function ConversationDetails({
               Channel
             </h4>
             <div className="flex items-center gap-2 text-sm text-slate-700">
-              <ChannelIcon className="h-4 w-4 text-slate-400" />
-              {channelLabels[conversation.channelOrigin]}
+              {ChannelIcon && <ChannelIcon aria-hidden="true" className="h-4 w-4 text-slate-400" />}
+              {channelLabels[conversation.channelOrigin] ?? conversation.channelOrigin}
             </div>
           </div>
 

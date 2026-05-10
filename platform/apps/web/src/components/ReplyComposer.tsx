@@ -12,11 +12,13 @@ export function ReplyComposer({ onSend, disabled }: ReplyComposerProps) {
   const [body, setBody] = useState('');
   const [isInternal, setIsInternal] = useState(false);
 
+  const MAX_LENGTH = 10_000;
+
   const handleSubmit = useCallback(
     (e?: FormEvent) => {
       e?.preventDefault();
       const trimmed = body.trim();
-      if (!trimmed) return;
+      if (!trimmed || trimmed.length > MAX_LENGTH) return;
       onSend(trimmed, isInternal ? 'internal' : 'public');
       setBody('');
     },
@@ -78,6 +80,7 @@ export function ReplyComposer({ onSend, disabled }: ReplyComposerProps) {
               : 'Type your reply...'
           }
           disabled={disabled}
+          maxLength={MAX_LENGTH}
           rows={3}
           className={`flex-1 resize-none rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 ${
             isInternal
@@ -88,7 +91,7 @@ export function ReplyComposer({ onSend, disabled }: ReplyComposerProps) {
         <button
           type="submit"
           aria-label={isInternal ? 'Send internal note' : 'Send reply'}
-          disabled={disabled || !body.trim()}
+          disabled={disabled || !body.trim() || body.trim().length > MAX_LENGTH}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
             isInternal
               ? 'bg-amber-500 text-white hover:bg-amber-600'

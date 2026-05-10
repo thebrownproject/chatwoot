@@ -23,7 +23,7 @@ export function AssigneeSelector({
       </h4>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
-          <button className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50">
+          <button aria-label="Select assignee" className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50">
             {currentAssignee ? (
               <>
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-[10px] font-medium text-blue-700">

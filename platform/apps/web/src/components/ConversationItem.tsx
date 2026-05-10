@@ -19,6 +19,8 @@ export function ConversationItem({ conversation, isActive }: ConversationItemPro
   return (
     <Link
       href={`/inbox/${conversation.id}`}
+      aria-label={`Conversation #${conversation.displayId} with ${contactName}${conversation.subject ? `: ${conversation.subject}` : ''}`}
+      aria-current={isActive ? 'page' : undefined}
       className={`block border-b border-slate-100 px-4 py-3 transition-colors ${
         isActive ? 'bg-blue-50' : 'hover:bg-slate-50'
       }`}
@@ -34,7 +36,7 @@ export function ConversationItem({ conversation, isActive }: ConversationItemPro
                 {contactName}
               </span>
               <span className="text-xs text-slate-400">#{conversation.displayId}</span>
-              <ChannelIcon className="h-3.5 w-3.5 text-slate-400" />
+              {ChannelIcon && <ChannelIcon aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" />}
             </div>
             {conversation.subject && (
               <p className="mt-0.5 truncate text-sm font-medium text-slate-700">
