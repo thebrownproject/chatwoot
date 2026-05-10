@@ -5,10 +5,12 @@ import { requestId } from 'hono/request-id';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { rateLimiter } from './middleware/rate-limiter.js';
+import { securityHeaders } from './middleware/security-headers.js';
 import { routes } from './routes/index.js';
 
 const app = new Hono();
 
+app.use('*', securityHeaders);
 app.use('*', requestId());
 app.use('*', bodyLimit({ maxSize: 1024 * 1024 }));
 app.use(
@@ -22,6 +24,7 @@ app.use(
 app.use('*', rateLimiter);
 app.use('*', requestLogger);
 app.onError(errorHandler);
+app.notFound((c) => c.json({ error: 'Not found' }, 404));
 app.route('/api/v1', routes);
 
 export { app };

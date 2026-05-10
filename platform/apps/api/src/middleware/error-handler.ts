@@ -25,10 +25,24 @@ export class AuthError extends HttpError {
   }
 }
 
+export class ForbiddenError extends HttpError {
+  constructor(message = 'Forbidden') {
+    super(403, message);
+    this.name = 'ForbiddenError';
+  }
+}
+
 export class NotFoundError extends HttpError {
   constructor(message = 'Not found') {
     super(404, message);
     this.name = 'NotFoundError';
+  }
+}
+
+export class ConflictError extends HttpError {
+  constructor(message = 'Conflict') {
+    super(409, message);
+    this.name = 'ConflictError';
   }
 }
 
@@ -45,19 +59,34 @@ function isForeignKeyViolation(err: unknown): boolean {
   );
 }
 
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: string }).code === '23505'
+  );
+}
+
 export const errorHandler: ErrorHandler = (err, c) => {
   if (err instanceof HttpError) {
-    return c.json({ error: err.message, status: err.statusCode }, err.statusCode);
+    return c.json({ error: err.message }, err.statusCode);
   }
 
   if (isJsonParseError(err)) {
-    return c.json({ error: 'Invalid JSON request body', status: 400 }, 400);
+    return c.json({ error: 'Invalid JSON request body' }, 400);
   }
 
   if (isForeignKeyViolation(err)) {
-    return c.json({ error: 'Related record not found', status: 404 }, 404);
+    return c.json({ error: 'Related record not found' }, 404);
   }
 
-  console.error('Unhandled error:', err);
-  return c.json({ error: 'Internal server error', status: 500 }, 500);
+  if (isUniqueViolation(err)) {
+    return c.json({ error: 'Record already exists' }, 409);
+  }
+
+  if (process.env.NODE_ENV !== 'test') {
+    console.error('Unhandled error:', err instanceof Error ? err.message : err);
+  }
+  return c.json({ error: 'Internal server error' }, 500);
 };
