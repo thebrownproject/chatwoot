@@ -1,4 +1,4 @@
-export { createNotification, listNotifications, markAsRead, markAllAsRead, getUnreadCount, deleteNotification } from './data/notifications.js';
+export { createNotification, listNotifications, markAsRead, markAllAsRead, getUnreadCount, deleteNotification, isValidNotificationType } from './data/notifications.js';
 export { getSettings, updateSettings } from './data/notification-settings.js';
 export { dispatch } from './dispatcher.js';
 export { createNotificationRoutes } from './routes/notifications.js';

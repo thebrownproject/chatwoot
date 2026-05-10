@@ -213,4 +213,63 @@ describe('notification dispatcher', () => {
 
     expect(db.notifications).toHaveLength(0);
   });
+
+  it('handles unsnoozed event type as status_change', async () => {
+    const event: ConversationEvent = {
+      id: 'evt-9',
+      conversationId: 'conv-1',
+      actorId: 'system-1',
+      eventType: 'unsnoozed',
+      payload: { from: 'snoozed', to: 'open' },
+      createdAt: new Date(),
+    };
+
+    await dispatch(db, event, createMockContext());
+
+    expect(db.notifications).toHaveLength(1);
+    expect(db.notifications[0]!.type).toBe('status_change');
+  });
+
+  it('handles participant_joined event', async () => {
+    const event: ConversationEvent = {
+      id: 'evt-10',
+      conversationId: 'conv-1',
+      actorId: 'admin-1',
+      eventType: 'participant_joined',
+      payload: { userId: 'agent-5' },
+      createdAt: new Date(),
+    };
+
+    await dispatch(db, event, createMockContext());
+
+    expect(db.notifications).toHaveLength(1);
+    expect(db.notifications[0]!.userId).toBe('agent-5');
+    expect(db.notifications[0]!.type).toBe('assignment');
+  });
+
+  it('continues creating notifications when one fails', async () => {
+    let callCount = 0;
+    const failingDb = {
+      ...db,
+      async query<T>(sql: string, params?: unknown[]): Promise<T[]> {
+        if (sql.includes('INSERT INTO notifications')) {
+          callCount++;
+          if (callCount === 1) throw new Error('DB write failed');
+        }
+        return db.query<T>(sql, params);
+      },
+    };
+
+    const event: ConversationEvent = {
+      id: 'evt-11',
+      conversationId: 'conv-1',
+      actorId: 'agent-1',
+      eventType: 'escalated',
+      payload: {},
+      createdAt: new Date(),
+    };
+
+    await dispatch(failingDb, event, createMockContext());
+    expect(db.notifications).toHaveLength(1);
+  });
 });

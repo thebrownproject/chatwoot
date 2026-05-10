@@ -34,6 +34,7 @@ function eventToNotificationType(eventType: string): NotificationType | null {
       return 'mention';
     case 'status_changed':
     case 'reopened':
+    case 'unsnoozed':
     case 'snoozed':
       return 'status_change';
     case 'escalated':
