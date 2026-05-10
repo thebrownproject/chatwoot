@@ -289,10 +289,11 @@ export async function sendMessage(
 ): Promise<Message> {
   const users = await listUsers();
   const usersById = new Map(users.map((user) => [user.id, user]));
+  // Actor identity is derived from the authenticated session on the server.
+  // senderId is passed in the request body for message attribution.
   const response = await request<{ data: ApiMessage }>(`/conversations/${conversationId}/messages`, {
     method: 'POST',
-    headers: { 'x-actor-id': senderId },
-    body: JSON.stringify({ body, visibility }),
+    body: JSON.stringify({ body, visibility, senderId }),
   });
   return mapMessage(response.data, usersById);
 }
@@ -302,9 +303,9 @@ export async function assignConversation(
   assigneeId: string | null,
   actorId: string,
 ): Promise<void> {
+  // Actor identity is derived from the authenticated session on the server.
   await request(`/conversations/${conversationId}/${assigneeId ? 'assign' : 'unassign'}`, {
     method: 'POST',
-    headers: { 'x-actor-id': actorId },
     body: assigneeId ? JSON.stringify({ assigneeId }) : undefined,
   });
 }
@@ -315,26 +316,26 @@ export async function changeConversationStatus(
   actorId: string,
 ): Promise<void> {
   if (status === 'resolved' || status === 'open') {
+    // Actor identity is derived from the authenticated session on the server.
     await request(`/conversations/${conversationId}/${status === 'resolved' ? 'resolve' : 'reopen'}`, {
       method: 'POST',
-      headers: { 'x-actor-id': actorId },
     });
     return;
   }
 
   if (status === 'snoozed') {
+    // Actor identity is derived from the authenticated session on the server.
     await request(`/conversations/${conversationId}/snooze`, {
       method: 'POST',
-      headers: { 'x-actor-id': actorId },
       body: JSON.stringify({ until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }),
     });
     return;
   }
 
   if (status === 'pending') {
+    // Actor identity is derived from the authenticated session on the server.
     await request(`/conversations/${conversationId}/pending`, {
       method: 'POST',
-      headers: { 'x-actor-id': actorId },
     });
   }
 }

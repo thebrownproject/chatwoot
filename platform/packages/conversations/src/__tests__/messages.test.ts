@@ -353,8 +353,17 @@ describe('Message Routes', () => {
   let db: TestDb;
   let app: Hono;
 
-  beforeEach(() => {
+  let seededConvId: string;
+
+  beforeEach(async () => {
     db = createTestDb();
+    // Seed a conversation so message creation can verify it exists
+    const conv = await db.conversationCrud.create({
+      channelOrigin: 'email',
+      subject: 'Test conversation',
+    });
+    seededConvId = conv.id;
+
     app = new Hono();
     app.use('*', async (c, next) => {
       c.set('db', db as any);
@@ -382,7 +391,7 @@ describe('Message Routes', () => {
   });
 
   it('POST /conversations/:id/messages creates a message', async () => {
-    const res = await app.request(`/conversations/${CONV_ID}/messages`, {
+    const res = await app.request(`/conversations/${seededConvId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body: 'New message' }),
