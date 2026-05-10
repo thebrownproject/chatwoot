@@ -1,60 +1,64 @@
 import type { HookDb, HookConversationEvent } from '../types.js';
 
-/**
- * Hook: runs after a conversation event is recorded.
- *
- * 1. Dispatch notifications based on event type:
- *    - assigned -> notify new assignee
- *    - escalated -> notify team leads
- *    - status_changed -> notify participants
- * 2. If agent assigned as owner -> trigger agent orchestrator (via event bus re-emit).
- */
 export async function onConversationEvent(
   db: HookDb,
   event: HookConversationEvent,
 ): Promise<void> {
-  switch (event.eventType) {
-    case 'assigned': {
-      const assigneeId = event.payload['assigneeId'] as string | undefined;
-      if (assigneeId && assigneeId !== event.actorId) {
-        await db.createNotification({
-          userId: assigneeId,
-          conversationId: event.conversationId,
-          type: 'assigned',
-          message: 'You have been assigned a conversation',
-        });
+  try {
+    switch (event.eventType) {
+      case 'assigned': {
+        const assigneeId = event.payload['assigneeId'];
+        if (typeof assigneeId === 'string' && assigneeId && assigneeId !== event.actorId) {
+          await db.createNotification({
+            userId: assigneeId,
+            conversationId: event.conversationId,
+            type: 'assigned',
+            message: 'You have been assigned a conversation',
+          });
+        }
+        break;
       }
-      break;
-    }
 
-    case 'escalated': {
-      const leadIds = await db.getTeamLeadIds();
-      for (const leadId of leadIds) {
-        await db.createNotification({
-          userId: leadId,
-          conversationId: event.conversationId,
-          type: 'escalated',
-          message: 'A conversation has been escalated',
-        });
+      case 'escalated': {
+        const leadIds = await db.getTeamLeadIds();
+        for (const leadId of leadIds) {
+          try {
+            await db.createNotification({
+              userId: leadId,
+              conversationId: event.conversationId,
+              type: 'escalated',
+              message: 'A conversation has been escalated',
+            });
+          } catch (err) {
+            console.error(`Failed to notify lead ${leadId}:`, err);
+          }
+        }
+        break;
       }
-      break;
-    }
 
-    case 'status_changed': {
-      const participantIds = await db.getParticipantIds(event.conversationId);
-      for (const userId of participantIds) {
-        if (userId === event.actorId) continue;
-        await db.createNotification({
-          userId,
-          conversationId: event.conversationId,
-          type: 'status_changed',
-          message: `Conversation status changed to ${event.payload['to'] as string}`,
-        });
+      case 'status_changed': {
+        const toStatus = typeof event.payload['to'] === 'string' ? event.payload['to'] : 'unknown';
+        const participantIds = await db.getParticipantIds(event.conversationId);
+        for (const userId of participantIds) {
+          if (userId === event.actorId) continue;
+          try {
+            await db.createNotification({
+              userId,
+              conversationId: event.conversationId,
+              type: 'status_changed',
+              message: `Conversation status changed to ${toStatus}`,
+            });
+          } catch (err) {
+            console.error(`Failed to notify participant ${userId}:`, err);
+          }
+        }
+        break;
       }
-      break;
-    }
 
-    default:
-      break;
+      default:
+        break;
+    }
+  } catch (err) {
+    console.error('onConversationEvent hook failed:', err);
   }
 }

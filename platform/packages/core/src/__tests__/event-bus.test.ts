@@ -122,4 +122,55 @@ describe('EventBus', () => {
 
     expect(results).toEqual([1, 3]);
   });
+
+  it('is safe when a handler removes itself during emit', async () => {
+    const results: number[] = [];
+    const selfRemover = async () => {
+      results.push(2);
+      bus.off('conversation.assigned', selfRemover);
+    };
+
+    bus.on('conversation.assigned', async () => { results.push(1); });
+    bus.on('conversation.assigned', selfRemover);
+    bus.on('conversation.assigned', async () => { results.push(3); });
+
+    await bus.emit('conversation.assigned', {
+      conversationId: 'conv-1',
+      assigneeId: 'user-1',
+    });
+
+    expect(results).toEqual([1, 2, 3]);
+  });
+
+  it('is safe when a handler adds a new handler during emit', async () => {
+    const results: number[] = [];
+
+    bus.on('conversation.assigned', async () => {
+      results.push(1);
+      bus.on('conversation.assigned', async () => { results.push(99); });
+    });
+
+    await bus.emit('conversation.assigned', {
+      conversationId: 'conv-1',
+      assigneeId: 'user-1',
+    });
+
+    expect(results).toEqual([1]);
+  });
+
+  it('reports listener count', () => {
+    expect(bus.listenerCount('message.created')).toBe(0);
+
+    const h = async () => {};
+    bus.on('message.created', h);
+    expect(bus.listenerCount('message.created')).toBe(1);
+
+    bus.off('message.created', h);
+    expect(bus.listenerCount('message.created')).toBe(0);
+  });
+
+  it('off is a no-op for unregistered handler', () => {
+    const h = async () => {};
+    bus.off('conversation.resolved', h);
+  });
 });
