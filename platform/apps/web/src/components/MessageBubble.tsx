@@ -19,7 +19,7 @@ function sanitizeHtml(html: string): string {
   cleaned = cleaned.replace(/(javascript|vbscript|data)\s*:/gi, 'blocked:');
 
   // Remove disallowed tags entirely (keep content for inline, strip content for dangerous)
-  const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form', 'style', 'link', 'meta', 'base', 'svg', 'math'];
+  const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form', 'style', 'link', 'meta', 'base', 'svg', 'math', 'applet'];
   for (const tag of dangerousTags) {
     // Remove tags with content
     cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi'), '');
