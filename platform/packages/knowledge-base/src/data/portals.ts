@@ -22,18 +22,27 @@ export function createPortal(
   _db: unknown,
   input: PortalCreate,
 ): PortalRecord {
-  // Enforce unique slug
+  const trimmedName = input.name.trim();
+  if (!trimmedName) {
+    throw new Error('Portal name cannot be empty');
+  }
+
+  const slug = input.slug.trim().toLowerCase();
+  if (!slug) {
+    throw new Error('Portal slug cannot be empty');
+  }
+
   for (const portal of store.values()) {
-    if (portal.slug === input.slug) {
-      throw new Error(`Portal with slug "${input.slug}" already exists`);
+    if (portal.slug === slug) {
+      throw new Error(`Portal with slug "${slug}" already exists`);
     }
   }
 
   const now = new Date();
   const record: PortalRecord = {
     id: randomUUID(),
-    name: input.name,
-    slug: input.slug,
+    name: trimmedName,
+    slug,
     customDomain: input.customDomain ?? null,
     config: input.config ?? {},
     active: true,
@@ -73,14 +82,28 @@ export function updatePortal(
   const existing = store.get(id);
   if (!existing) return undefined;
 
-  // If changing slug, enforce uniqueness
-  if (input.slug !== undefined && input.slug !== existing.slug) {
-    for (const portal of store.values()) {
-      if (portal.slug === input.slug) {
-        throw new Error(`Portal with slug "${input.slug}" already exists`);
+  if (input.name !== undefined) {
+    const trimmed = input.name.trim();
+    if (!trimmed) throw new Error('Portal name cannot be empty');
+    input = { ...input, name: trimmed };
+  }
+
+  if (input.slug !== undefined) {
+    const slug = input.slug.trim().toLowerCase();
+    if (!slug) throw new Error('Portal slug cannot be empty');
+    input = { ...input, slug };
+
+    if (slug !== existing.slug) {
+      for (const portal of store.values()) {
+        if (portal.slug === slug) {
+          throw new Error(`Portal with slug "${slug}" already exists`);
+        }
       }
     }
   }
+
+  const hasChanges = Object.keys(input).length > 0;
+  if (!hasChanges) return existing;
 
   const updated: PortalRecord = {
     ...existing,
@@ -93,6 +116,13 @@ export function updatePortal(
   };
   store.set(id, updated);
   return updated;
+}
+
+export function deletePortal(
+  _db: unknown,
+  id: string,
+): boolean {
+  return store.delete(id);
 }
 
 /**

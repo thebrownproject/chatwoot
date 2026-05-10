@@ -82,21 +82,31 @@ export function createCategoryRoutes(db: unknown): Hono {
       return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
     }
 
-    const category = updateCategory(db, id, parsed.data);
-    if (!category) {
-      return c.json({ error: 'Category not found' }, 404);
+    try {
+      const category = updateCategory(db, id, parsed.data);
+      if (!category) {
+        return c.json({ error: 'Category not found' }, 404);
+      }
+      return c.json({ data: category });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return c.json({ error: message }, 409);
     }
-    return c.json({ data: category });
   });
 
   // DELETE /categories/:id — delete a category
   app.delete('/categories/:id', (c) => {
     const id = c.req.param('id');
-    const deleted = deleteCategory(db, id);
-    if (!deleted) {
-      return c.json({ error: 'Category not found' }, 404);
+    try {
+      const deleted = deleteCategory(db, id);
+      if (!deleted) {
+        return c.json({ error: 'Category not found' }, 404);
+      }
+      return c.json({ data: { deleted: true } });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return c.json({ error: message }, 409);
     }
-    return c.json({ data: { deleted: true } });
   });
 
   // POST /categories/reorder — reorder categories
