@@ -15,6 +15,11 @@ export interface WsServerOptions {
     conversationId: string,
     body: string,
   ) => Promise<void>;
+  /** Authorize a user to subscribe to a conversation. Return true to allow. */
+  onAuthorize?: (
+    userId: string,
+    conversationId: string,
+  ) => Promise<boolean>;
 }
 
 /**
@@ -124,7 +129,31 @@ function handleClientMessage(
 
   switch (event.type) {
     case 'subscribe':
-      connections.subscribe(ws, event.conversationId);
+      if (options.onAuthorize) {
+        options.onAuthorize(info.userId, event.conversationId)
+          .then((allowed) => {
+            if (allowed) {
+              connections.subscribe(ws, event.conversationId);
+            } else {
+              ws.send(
+                JSON.stringify({
+                  type: 'error',
+                  message: `Not authorized to subscribe to conversation ${event.conversationId}`,
+                } satisfies WsServerEvent),
+              );
+            }
+          })
+          .catch(() => {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                message: 'Authorization check failed',
+              } satisfies WsServerEvent),
+            );
+          });
+      } else {
+        connections.subscribe(ws, event.conversationId);
+      }
       break;
 
     case 'unsubscribe':
