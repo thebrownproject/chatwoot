@@ -152,6 +152,70 @@ describe('Conversation lifecycle', () => {
     expect(final?.status).toBe('open');
   });
 
+  it('full cross-module flow: create -> assign -> handoff -> resolve -> metrics', async () => {
+    // 1. Create users
+    const contact = p.users.create({ type: 'contact', name: 'Builder Jane', email: 'jane@builder.com' });
+    const ron = p.users.create({ type: 'ai_agent', name: 'Ron Swanson' });
+    const joanna = p.users.create({ type: 'human_agent', name: 'Joanna' });
+
+    // 2. Contact starts conversation
+    const conv = await p.conversations.create(p.db, {
+      channelOrigin: 'web_chat',
+      subject: 'Complex legal compliance question',
+      priority: 'high',
+    });
+
+    // 3. Ron is auto-assigned
+    await p.conversations.assign(p.db, conv.id, ron.id, ron.id);
+
+    // 4. Ron generates a copilot suggestion
+    const suggestion = await p.agents.copilot.createSuggestion(p.db, {
+      conversationId: conv.id,
+      agentId: ron.id,
+      suggestedReply: 'For legal compliance, you need...',
+      confidence: 0.4,
+      reasoning: 'Low confidence -- legal question outside expertise',
+    });
+
+    // 5. Low confidence -> Ron escalates to Joanna
+    p.agents.handoff.seedAssignment(conv.id, ron.id);
+    const handoff = await p.agents.handoff.requestHandoff(
+      p.db,
+      ron.id,
+      conv.id,
+      'Legal compliance outside AI expertise',
+      joanna.id,
+    );
+    expect(handoff.toUserId).toBe(joanna.id);
+
+    // 6. Dismiss the low-confidence suggestion
+    await p.agents.copilot.dismiss(p.db, suggestion.id);
+    const pending = await p.agents.copilot.listPending(p.db, conv.id);
+    expect(pending).toHaveLength(0);
+
+    // 7. Joanna is now assigned, resolves
+    await p.conversations.assign(p.db, conv.id, joanna.id, joanna.id);
+    const resolved = await p.conversations.resolve(p.db, conv.id, joanna.id);
+    expect(resolved.ok).toBe(true);
+
+    // 8. Compute metrics
+    const { data: allConvs } = await p.conversations.list(p.db, {});
+    const metrics = p.metrics.compute(allConvs);
+    expect(metrics.total).toBe(1);
+    expect(metrics.byStatus.resolved).toBe(1);
+    expect(metrics.avgResolutionMs).not.toBeNull();
+
+    // 9. Verify complete audit trail
+    const events = await p.conversations.getEvents(p.db, conv.id);
+    const eventTypes = events.map((e) => e.eventType);
+    expect(eventTypes).toContain('created');
+    expect(eventTypes).toContain('resolved');
+
+    // 10. Verify handoff event trail
+    const handoffEvents = p.agents.handoff.getEvents();
+    expect(handoffEvents.some((e) => e.eventType === 'escalated')).toBe(true);
+  });
+
   it('lists conversations with filters', async () => {
     await p.conversations.create(p.db, { channelOrigin: 'email', priority: 'high' });
     await p.conversations.create(p.db, { channelOrigin: 'web_chat', priority: 'low' });

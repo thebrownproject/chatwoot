@@ -12,6 +12,7 @@ import {
   updateConversation,
   resolveConversation,
   reopenConversation,
+  pendConversation,
   snoozeConversation,
   unsnoozeConversation,
   getConversationEvents,
@@ -45,6 +46,7 @@ import {
   getAgentConfig,
   listAgents,
   updateAgentConfig,
+  _resetStore as resetAgentStore,
 } from '../../packages/agents/src/data/agents.js';
 
 import {
@@ -88,6 +90,10 @@ import {
   resetRoundRobin,
 } from '../../packages/routing/src/engine/assigner.js';
 
+import { EventBus } from '../../packages/core/src/event-bus.js';
+import { onConversationEvent } from '../../packages/core/src/hooks/conversation-hooks.js';
+import { onMessageCreated } from '../../packages/core/src/hooks/message-hooks.js';
+import type { HookDb, HookMessage, HookConversation, HookConversationEvent, EventMap } from '../../packages/core/src/types.js';
 import type { Conversation, ConversationCreate, DbClient } from '../../packages/conversations/src/types.js';
 import type { Db as ConversationDb } from '../../packages/conversations/src/data/db.js';
 import type { ConversationEvent, ConversationEventCreate, EventType } from '../../packages/conversations/src/types/events.js';
@@ -487,6 +493,7 @@ export interface Platform {
     ) => Promise<Conversation | undefined>;
     resolve: typeof resolveConversation;
     reopen: typeof reopenConversation;
+    pend: typeof pendConversation;
     snooze: typeof snoozeConversation;
     unsnooze: typeof unsnoozeConversation;
     getEvents: typeof getConversationEvents;
@@ -556,6 +563,14 @@ export interface Platform {
     roundRobin: typeof roundRobin;
   };
 
+  // Core event bus and hooks
+  eventBus: EventBus;
+  hooks: {
+    onConversationEvent: typeof onConversationEvent;
+    onMessageCreated: typeof onMessageCreated;
+  };
+  createHookDb: () => HookDb;
+
   // Test helpers
   users: {
     create: typeof createTestUser;
@@ -580,6 +595,7 @@ export interface Platform {
 export function createPlatform(): Platform {
   // Reset all in-memory stores
   resetConversationStore();
+  resetAgentStore();
   _resetCopilotStore();
   _resetHandoffStore();
   resetRoundRobin();
@@ -615,6 +631,7 @@ export function createPlatform(): Platform {
       },
       resolve: resolveConversation,
       reopen: reopenConversation,
+      pend: pendConversation,
       snooze: snoozeConversation,
       unsnooze: unsnoozeConversation,
       getEvents: getConversationEvents,
@@ -679,6 +696,60 @@ export function createPlatform(): Platform {
       matchConditions,
       executeAction,
       roundRobin,
+    },
+
+    eventBus: new EventBus(),
+    hooks: {
+      onConversationEvent,
+      onMessageCreated,
+    },
+    createHookDb: (): HookDb => {
+      const hookNotifications: TestNotification[] = [];
+      return {
+        async updateConversationStatus(conversationId, status) {
+          const conv = await getConversationById(db, conversationId);
+          if (conv) {
+            (conv as { status: string }).status = status;
+          }
+        },
+        async setFirstReplyAt(conversationId, timestamp) {
+          const conv = await getConversationById(db, conversationId);
+          if (conv) {
+            conv.firstReplyAt = timestamp;
+          }
+        },
+        async getParticipantIds(conversationId) {
+          return (await conversationAssignmentDb.participants.list(conversationId)).map(p => p.userId);
+        },
+        async getUser(userId) {
+          const user = getTestUser(userId);
+          if (!user) return undefined;
+          return { id: user.id, type: user.type };
+        },
+        async createNotification(notification) {
+          const n: TestNotification = {
+            id: crypto.randomUUID(),
+            userId: notification.userId,
+            type: notification.type,
+            title: notification.type,
+            body: notification.message,
+            conversationId: notification.conversationId,
+            read: false,
+            createdAt: new Date(),
+          };
+          notificationStore.push(n);
+          hookNotifications.push(n);
+        },
+        async getTeamLeadIds() {
+          const leadIds: string[] = [];
+          for (const team of teams.values()) {
+            for (const member of team.members) {
+              if (member.role === 'lead') leadIds.push(member.userId);
+            }
+          }
+          return leadIds;
+        },
+      };
     },
 
     users: {
