@@ -155,6 +155,9 @@ export function createMockDb(): RoutingDb & {
       const conv = conversations.get(id);
       if (conv) {
         conv.status = status;
+        if (status !== 'snoozed') {
+          conv.snoozedUntil = undefined;
+        }
       }
     },
 
